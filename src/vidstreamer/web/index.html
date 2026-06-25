@@ -177,7 +177,31 @@
   .filelist .item svg { width: 16px; height: 16px; fill: var(--muted); flex: none; }
   .filelist .item.dir svg { fill: var(--accent); }
   .filelist .item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .modal .foot { padding: 12px 18px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; }
+  .modal .foot { padding: 12px 18px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; }
+
+  /* Settings modal body */
+  .modal-body { padding: 16px 18px; overflow-y: auto; }
+  .modal-body .field-block + .field-block { margin-top: 14px; }
+  .gear { margin-left: 8px; }
+  button.icon.gear svg { width: 18px; height: 18px; }
+
+  /* Subtitle search area */
+  .sub-search { margin-top: 10px; }
+  .sub-found { font-size: 12px; color: var(--ok); margin: 8px 2px 0; display: none; }
+  .sub-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .sub-actions button { padding: 8px 12px; font-size: 13px; }
+  .sub-results { margin-top: 10px; display: none; }
+  .sub-results .res {
+    display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+    border: 1px solid var(--line); border-radius: 9px; margin-bottom: 6px;
+    background: var(--panel-2); font-size: 13px;
+  }
+  .sub-results .res .meta { flex: 1; min-width: 0; overflow: hidden; }
+  .sub-results .res .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sub-results .res .tag { color: var(--muted); font-size: 11px; }
+  .sub-results .res button { padding: 6px 12px; font-size: 12px; }
+  .sub-results .head { font-size: 11px; text-transform: uppercase; letter-spacing: .6px;
+                       color: var(--muted); margin: 6px 2px; }
 </style>
 </head>
 <body>
@@ -186,6 +210,7 @@
     <div class="logo"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
     <h1>vidstreamer</h1>
     <div class="conn"><span class="dot" id="connDot"></span><span id="connText">idle</span></div>
+    <button class="icon gear" id="openSettings" title="Settings"><svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.49 7.49 0 0 0 .05-1.88l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7 7 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.6.22L2.61 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.49 7.49 0 0 0 0 1.88L2.73 14.5a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96a7 7 0 0 0 1.62.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54a7 7 0 0 0 1.62-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg></button>
   </header>
 
   <!-- SETUP -->
@@ -214,6 +239,15 @@
       <div class="row" id="subFileRow" style="margin-top:12px">
         <input type="text" id="subPath" placeholder="Optional sidecar subtitle (.srt / .vtt)" autocomplete="off">
         <button class="icon" id="browseSub" title="Browse subtitles"><svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></button>
+      </div>
+      <div class="sub-found" id="subFound"></div>
+      <div class="sub-search">
+        <div class="sub-actions">
+          <button id="searchLocal" title="Search the media root for matching subtitles">Search subtitles</button>
+          <button id="searchOnline" title="Search OpenSubtitles">Search online</button>
+        </div>
+        <div class="hint" id="subSearchHint"></div>
+        <div class="sub-results" id="subResults"></div>
       </div>
     </div>
 
@@ -278,7 +312,41 @@
     <h3 id="modalTitle">Choose a file</h3>
     <div class="cwd" id="modalCwd"></div>
     <div class="filelist" id="fileList"></div>
-    <div class="foot"><button class="ghost" id="modalClose">Cancel</button></div>
+    <div class="foot">
+      <button class="ghost" id="modalPickDir" style="display:none">Use this folder</button>
+      <button class="ghost" id="modalClose">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-back" id="settingsBack">
+  <div class="modal">
+    <h3>Settings</h3>
+    <div class="modal-body">
+      <div class="field-block">
+        <label class="field" for="setMediaRoot">Media root</label>
+        <div class="row">
+          <input type="text" id="setMediaRoot" placeholder="/path/to/media" autocomplete="off">
+          <button class="icon" id="browseRoot" title="Browse folders"><svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></button>
+        </div>
+        <div class="hint">Where "Search subtitles" looks for matching files.</div>
+      </div>
+      <div class="field-block">
+        <label class="field" for="setLang">Preferred subtitle language</label>
+        <select id="setLang"></select>
+      </div>
+      <div class="field-block">
+        <label class="field" for="setApiKey">OpenSubtitles API key</label>
+        <input type="text" id="setApiKey" placeholder="Required for online search" autocomplete="off">
+        <div class="hint">Leave empty to disable online subtitle search.</div>
+      </div>
+      <div class="hint" id="settingsHint"></div>
+    </div>
+    <div class="foot">
+      <button class="ghost" id="settingsClose">Cancel</button>
+      <button class="primary" id="settingsSave" style="width:auto;margin-top:0">Save</button>
+    </div>
   </div>
 </div>
 
@@ -325,6 +393,126 @@ async function loadMedia() {
   renderTracks(body);
   setHint($("srcHint"), "Ready to cast", "ok");
   $("castBtn").disabled = false;
+  autoFindSubs(src);
+}
+
+/* ---------- Subtitle search ---------- */
+let onlineAvailable = false;
+function clearSubSearch() {
+  $("subFound").style.display = "none";
+  $("subResults").style.display = "none";
+  $("subResults").innerHTML = "";
+  setHint($("subSearchHint"), "");
+}
+
+// After a probe, look for a same-name sidecar (and media-root matches) and, if a
+// sidecar is found, preselect it.
+async function autoFindSubs(src) {
+  clearSubSearch();
+  const { ok, body } = await api("/api/subsearch", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source: src }),
+  });
+  if (!ok) return;
+  onlineAvailable = !!body.online_available;
+  $("searchOnline").disabled = !onlineAvailable;
+  $("searchOnline").title = onlineAvailable
+    ? "Search OpenSubtitles" : "Set an OpenSubtitles API key in Settings";
+  if (body.sidecar) {
+    const name = body.sidecar.split("/").pop();
+    $("subPath").value = body.sidecar;
+    $("subSelect").value = "sidecar";
+    const f = $("subFound");
+    f.textContent = "✓ found subtitles: " + name;
+    f.style.display = "block";
+  }
+}
+
+async function searchLocal() {
+  const src = $("source").value.trim();
+  if (!src) return;
+  setHint($("subSearchHint"), "Searching media root…");
+  $("subResults").style.display = "none";
+  const { ok, body } = await api("/api/subsearch", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source: src }),
+  });
+  if (!ok) { setHint($("subSearchHint"), (body && body.error) || "Search failed", "err"); return; }
+  const list = (body && body.local) || [];
+  if (!list.length) { setHint($("subSearchHint"), "No matching subtitles under the media root.", ""); return; }
+  setHint($("subSearchHint"), "");
+  const box = $("subResults");
+  box.innerHTML = "<div class='head'>Local matches</div>";
+  list.forEach((m) => box.appendChild(localRow(m)));
+  box.style.display = "block";
+}
+
+function localRow(m) {
+  const div = document.createElement("div");
+  div.className = "res";
+  div.innerHTML = "<div class='meta'><div class='name'>" + escapeHtml(m.name) +
+    "</div><div class='tag'>" + escapeHtml(m.lang) + "</div></div>";
+  const btn = document.createElement("button");
+  btn.textContent = "Use";
+  btn.onclick = () => selectSidecar(m.path, m.name);
+  div.appendChild(btn);
+  return div;
+}
+
+async function searchOnline() {
+  const src = $("source").value.trim();
+  if (!src) return;
+  if (!onlineAvailable) { setHint($("subSearchHint"), "Set an OpenSubtitles API key in Settings first.", "err"); return; }
+  setHint($("subSearchHint"), "Searching OpenSubtitles…");
+  $("searchOnline").disabled = true;
+  const { ok, body } = await api("/api/subsearch/online", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source: src }),
+  });
+  $("searchOnline").disabled = false;
+  if (!ok) { setHint($("subSearchHint"), (body && body.error) || "Online search failed", "err"); return; }
+  const list = (body && body.results) || [];
+  if (!list.length) { setHint($("subSearchHint"), "No online subtitles found.", ""); return; }
+  setHint($("subSearchHint"), "");
+  const box = $("subResults");
+  box.innerHTML = "<div class='head'>Online (OpenSubtitles)</div>";
+  list.forEach((r) => box.appendChild(onlineRow(r)));
+  box.style.display = "block";
+}
+
+function onlineRow(r) {
+  const div = document.createElement("div");
+  div.className = "res";
+  const dl = r.download_count ? " · " + r.download_count + " dl" : "";
+  div.innerHTML = "<div class='meta'><div class='name'>" + escapeHtml(r.name) +
+    "</div><div class='tag'>" + escapeHtml(r.lang) + dl + "</div></div>";
+  const btn = document.createElement("button");
+  btn.textContent = "Use";
+  btn.disabled = !r.file_id;
+  btn.onclick = async () => {
+    btn.disabled = true; btn.textContent = "…";
+    const { ok, body } = await api("/api/subdownload", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file_id: r.file_id }),
+    });
+    if (!ok || !body.path) { btn.textContent = "Use"; btn.disabled = false; setHint($("subSearchHint"), (body && body.error) || "Download failed", "err"); return; }
+    selectSidecar(body.path, body.path.split("/").pop());
+    btn.textContent = "✓";
+  };
+  div.appendChild(btn);
+  return div;
+}
+
+function selectSidecar(path, name) {
+  $("subPath").value = path;
+  $("subSelect").value = "sidecar";
+  const f = $("subFound");
+  f.textContent = "✓ using subtitles: " + name;
+  f.style.display = "block";
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
 function renderMeta(m) {
@@ -528,10 +716,12 @@ async function control(action, value) {
 }
 
 /* ---------- File browser modal ---------- */
-let pickerKind = "video", pickerTarget = "source";
+let pickerKind = "video", pickerTarget = "source", pickerPath = "";
 async function openPicker(kind, target) {
   pickerKind = kind; pickerTarget = target;
-  $("modalTitle").textContent = kind === "sub" ? "Choose a subtitle file" : "Choose a video file";
+  const titles = { sub: "Choose a subtitle file", dir: "Choose a folder", video: "Choose a video file" };
+  $("modalTitle").textContent = titles[kind] || titles.video;
+  $("modalPickDir").style.display = kind === "dir" ? "" : "none";
   $("modalBack").classList.add("show");
   const cur = $(target).value.trim();
   await browseTo(cur || "");
@@ -539,6 +729,7 @@ async function openPicker(kind, target) {
 async function browseTo(path) {
   const { body } = await api("/api/fs?kind=" + pickerKind + "&path=" + encodeURIComponent(path || ""));
   if (body.error) { $("modalCwd").textContent = body.error; return; }
+  pickerPath = body.path;
   $("modalCwd").textContent = body.path;
   const list = $("fileList");
   list.innerHTML = "";
@@ -562,6 +753,54 @@ function choosePath(path) {
   else if (pickerTarget === "subPath") { const s = $("subSelect"); s.value = "sidecar"; }
 }
 
+/* ---------- Settings ---------- */
+const LANGS = [
+  ["en", "English"], ["es", "Spanish"], ["fr", "French"], ["de", "German"],
+  ["it", "Italian"], ["pt", "Portuguese"], ["nl", "Dutch"], ["pl", "Polish"],
+  ["ru", "Russian"], ["cs", "Czech"], ["sk", "Slovak"], ["sv", "Swedish"],
+  ["da", "Danish"], ["no", "Norwegian"], ["fi", "Finnish"], ["hu", "Hungarian"],
+  ["ro", "Romanian"], ["el", "Greek"], ["tr", "Turkish"], ["ar", "Arabic"],
+  ["he", "Hebrew"], ["ja", "Japanese"], ["ko", "Korean"], ["zh", "Chinese"],
+  ["hi", "Hindi"], ["uk", "Ukrainian"],
+];
+function fillLangSelect(sel, current, sysLang) {
+  sel.innerHTML = "";
+  let have = LANGS.some((l) => l[0] === current);
+  LANGS.forEach(([code, name]) => {
+    const label = name + (code === sysLang ? " (system)" : "");
+    sel.add(new Option(label, code));
+  });
+  if (current && !have) sel.add(new Option(current, current));
+  sel.value = current || sysLang || "en";
+}
+async function openSettings() {
+  setHint($("settingsHint"), "Loading…");
+  const { ok, body } = await api("/api/settings");
+  if (!ok) { setHint($("settingsHint"), "Could not load settings", "err"); }
+  const s = body || {};
+  $("setMediaRoot").value = s.media_root || "";
+  fillLangSelect($("setLang"), s.preferred_sub_lang, s.system_language);
+  $("setApiKey").value = s.opensubtitles_api_key || "";
+  setHint($("settingsHint"), "");
+  $("settingsBack").classList.add("show");
+}
+async function saveSettings() {
+  setHint($("settingsHint"), "Saving…");
+  const payload = {
+    media_root: $("setMediaRoot").value.trim(),
+    preferred_sub_lang: $("setLang").value,
+    opensubtitles_api_key: $("setApiKey").value.trim(),
+  };
+  const { ok, body } = await api("/api/settings", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!ok) { setHint($("settingsHint"), (body && body.error) || "Save failed", "err"); return; }
+  onlineAvailable = !!(body && body.has_api_key);
+  $("searchOnline").disabled = !onlineAvailable;
+  $("settingsBack").classList.remove("show");
+}
+
 /* ---------- Wire up ---------- */
 let volDragging = false;
 $("source").addEventListener("change", loadMedia);
@@ -573,6 +812,16 @@ $("castBtn").onclick = startCast;
 $("subPath").addEventListener("change", () => { if ($("subPath").value.trim()) $("subSelect").value = "sidecar"; });
 $("modalClose").onclick = () => $("modalBack").classList.remove("show");
 $("modalBack").onclick = (e) => { if (e.target === $("modalBack")) $("modalBack").classList.remove("show"); };
+$("modalPickDir").onclick = () => { if (pickerPath) choosePath(pickerPath); };
+
+$("searchLocal").onclick = searchLocal;
+$("searchOnline").onclick = searchOnline;
+
+$("openSettings").onclick = openSettings;
+$("settingsClose").onclick = () => $("settingsBack").classList.remove("show");
+$("settingsSave").onclick = saveSettings;
+$("browseRoot").onclick = () => openPicker("dir", "setMediaRoot");
+$("settingsBack").onclick = (e) => { if (e.target === $("settingsBack")) $("settingsBack").classList.remove("show"); };
 
 $("playPause").onclick = () => {
   const playing = last.state === "PLAYING";

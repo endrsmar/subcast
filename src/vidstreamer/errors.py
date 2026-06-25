@@ -35,3 +35,9 @@ class UnsupportedMediaError(VidstreamerError):
     """Media cannot be played and transcoding was refused (--no-transcode)."""
 
     exit_code = 6
+
+
+class SubSearchError(VidstreamerError):
+    """Subtitle search or download failed (network, config, or remote API)."""
+
+    exit_code = 7

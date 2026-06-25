@@ -13,18 +13,21 @@ from __future__ import annotations
 
 import asyncio
 import os
+import tempfile
 import webbrowser
 from pathlib import Path
 
 import click
 from aiohttp import web
 
-from . import discovery
+from . import discovery, subsearch
 from .app import CastOptions, Session, prepare_session
 from .caster import STREAM_BUFFERED
 from .config import log
-from .errors import VidstreamerError
+from .errors import SubSearchError, VidstreamerError
 from .probe import MediaInfo, probe_source
+from .settings import load_settings, system_language, update_settings
+from .source import resolve_source
 from .subtitles import shift_vtt
 
 WEB_DIR = Path(__file__).parent / "web"
@@ -191,8 +194,13 @@ async def api_probe(request: web.Request) -> web.Response:
 
 
 async def api_fs(request: web.Request) -> web.Response:
-    """List a local directory for the in-browser file picker."""
+    """List a local directory for the in-browser file picker.
+
+    ``kind`` selects which leaf files are shown: ``video`` (default), ``sub``, or
+    ``dir`` (directories only, for picking a media-root folder).
+    """
     kind = request.query.get("kind", "video")
+    dir_only = kind == "dir"
     exts = SUB_EXTS if kind == "sub" else VIDEO_EXTS
     raw = request.query.get("path") or str(Path.home())
     p = Path(raw).expanduser()
@@ -212,11 +220,132 @@ async def api_fs(request: web.Request) -> web.Response:
             is_dir = child.is_dir()
         except OSError:
             continue
-        if not is_dir and child.suffix.lower() not in exts:
+        if dir_only and not is_dir:
+            continue
+        if not dir_only and not is_dir and child.suffix.lower() not in exts:
             continue
         entries.append({"name": child.name, "path": str(child), "is_dir": is_dir})
     parent = str(p.parent) if p.parent != p else None
     return web.json_response({"path": str(p), "parent": parent, "entries": entries})
+
+
+# --------------------------------------------------------------------------- #
+# Settings + subtitle search
+# --------------------------------------------------------------------------- #
+
+def _settings_payload() -> dict:
+    s = load_settings()
+    return {
+        "media_root": s.media_root,
+        "preferred_sub_lang": s.preferred_sub_lang,
+        "opensubtitles_api_key": s.opensubtitles_api_key,
+        "has_api_key": bool(s.opensubtitles_api_key),
+        "system_language": system_language(),
+    }
+
+
+def _local_path(source: str) -> str | None:
+    """Return the absolute local path for ``source``, or None for remote/invalid."""
+    try:
+        src = resolve_source(source)
+    except VidstreamerError:
+        return None
+    return None if src.is_remote else src.ffmpeg_input
+
+
+def _subcache_dir() -> str:
+    d = os.path.join(tempfile.gettempdir(), "vidstreamer-subs")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+async def api_settings_get(request: web.Request) -> web.Response:
+    return web.json_response(await _run(_settings_payload))
+
+
+async def api_settings_post(request: web.Request) -> web.Response:
+    data = await request.json()
+    fields = {
+        k: data[k]
+        for k in ("media_root", "preferred_sub_lang", "opensubtitles_api_key")
+        if k in data
+    }
+
+    def _save():
+        update_settings(**fields)
+        return _settings_payload()
+
+    return web.json_response(await _run(_save))
+
+
+async def api_subsearch(request: web.Request) -> web.Response:
+    """Cheap subtitle discovery for a source: sidecar + media-root scan."""
+    data = await request.json()
+    source = (data.get("source") or "").strip()
+    settings = load_settings()
+    local = _local_path(source)
+    if local is None:
+        return web.json_response({
+            "sidecar": None, "local": [],
+            "online_available": bool(settings.opensubtitles_api_key),
+        })
+
+    def _work():
+        sidecar = subsearch.find_sidecar(local, settings.preferred_sub_lang)
+        matches = subsearch.search_media_root(
+            local, settings.media_root, settings.preferred_sub_lang
+        )
+        # Don't list the same-folder sidecar again under "local".
+        if sidecar:
+            matches = [m for m in matches if m["path"] != sidecar]
+        return sidecar, matches[:20]
+
+    sidecar, matches = await _run(_work)
+    return web.json_response({
+        "sidecar": sidecar,
+        "local": matches,
+        "online_available": bool(settings.opensubtitles_api_key),
+    })
+
+
+async def api_subsearch_online(request: web.Request) -> web.Response:
+    data = await request.json()
+    source = (data.get("source") or "").strip()
+    settings = load_settings()
+    name = source
+    local = _local_path(source)
+    if local:
+        name = local
+    try:
+        results = await _run(
+            subsearch.search_online, name,
+            settings.preferred_sub_lang, settings.opensubtitles_api_key,
+        )
+    except SubSearchError as exc:
+        return web.json_response({"error": str(exc)}, status=400)
+    except Exception as exc:
+        log.exception("online subtitle search failed")
+        return web.json_response({"error": str(exc)}, status=500)
+    return web.json_response({"results": results})
+
+
+async def api_subdownload(request: web.Request) -> web.Response:
+    data = await request.json()
+    file_id = data.get("file_id")
+    settings = load_settings()
+    if file_id in (None, ""):
+        return web.json_response({"error": "no file_id given"}, status=400)
+    try:
+        path = await _run(
+            subsearch.download_online, str(file_id),
+            settings.opensubtitles_api_key, _subcache_dir(),
+        )
+    except SubSearchError as exc:
+        return web.json_response({"error": str(exc)}, status=400)
+    except Exception as exc:
+        log.exception("subtitle download failed")
+        return web.json_response({"error": str(exc)}, status=500)
+    return web.json_response({"path": path})
 
 
 def _opts_from_request(data: dict) -> tuple[str, CastOptions]:
@@ -226,10 +355,21 @@ def _opts_from_request(data: dict) -> tuple[str, CastOptions]:
         v = data.get(key)
         return v if v not in (None, "") else None
 
+    # Default the subtitle language to the user's preferred language unless the
+    # request overrides it; this seeds embedded-track auto-selection and the
+    # sidecar track label.
+    sub_lang = _opt("sub_lang")
+    if sub_lang is None:
+        try:
+            sub_lang = load_settings().preferred_sub_lang or None
+        except Exception:  # never let a settings hiccup block a cast
+            sub_lang = None
+
     opts_dict = {
         "device": _opt("device"),
         "subtitle_path": _opt("subtitle_path"),
         "sub_track": (str(_opt("sub_track")) if _opt("sub_track") is not None else None),
+        "sub_lang": sub_lang,
         "audio_track": (int(_opt("audio_track")) if _opt("audio_track") is not None else None),
         "no_subs": bool(data.get("no_subs")),
         "volume": (float(data["volume"]) if data.get("volume") is not None else None),
@@ -425,6 +565,11 @@ def build_app() -> web.Application:
     app.router.add_get("/api/devices", api_devices)
     app.router.add_post("/api/probe", api_probe)
     app.router.add_get("/api/fs", api_fs)
+    app.router.add_get("/api/settings", api_settings_get)
+    app.router.add_post("/api/settings", api_settings_post)
+    app.router.add_post("/api/subsearch", api_subsearch)
+    app.router.add_post("/api/subsearch/online", api_subsearch_online)
+    app.router.add_post("/api/subdownload", api_subdownload)
     app.router.add_post("/api/cast", api_cast)
     app.router.add_get("/api/status", api_status)
     app.router.add_post("/api/control", api_control)
