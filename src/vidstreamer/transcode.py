@@ -65,7 +65,7 @@ def build_ffmpeg_command(
         cmd += ["-map", "0:v:0"]
         if video_filter:
             cmd += ["-vf", video_filter]
-    cmd += ["-map", "0:a:0?"]
+    cmd += ["-map", f"0:a:{plan.audio_index}?"]
 
     # --- Video codec ---
     if plan.video_action == "transcode" or burn_in is not None:

@@ -41,11 +41,26 @@ class VideoStream:
 
 @dataclass
 class AudioStream:
-    index: int
+    index: int            # absolute stream index in the container
     codec: str
     channels: int | None = None
     sample_rate: int | None = None
     language: str | None = None
+    audio_index: int = 0  # index among audio streams (0-based) -> ffmpeg 0:a:N
+    title: str | None = None
+    default: bool = False
+
+    def label(self) -> str:
+        """A short human label for pickers, e.g. 'eng · ac3 5.1 (Director)'."""
+        ch = {1: "mono", 2: "stereo", 6: "5.1", 8: "7.1"}.get(
+            self.channels or 0, f"{self.channels}ch" if self.channels else "")
+        parts = [self.language or "und", self.codec]
+        if ch:
+            parts.append(ch)
+        base = " ".join(p for p in parts if p)
+        if self.title:
+            base += f" ({self.title})"
+        return base
 
 
 @dataclass
@@ -68,7 +83,8 @@ class MediaInfo:
     ffmpeg_input: str = ""        # resolved input path/URL for ffmpeg
     duration: float | None = None
     video: VideoStream | None = None
-    audio: AudioStream | None = None
+    audio: AudioStream | None = None  # the first/default audio track (back-compat)
+    audio_tracks: list[AudioStream] = field(default_factory=list)
     subtitle_tracks: list[SubtitleTrack] = field(default_factory=list)
 
     def as_dict(self) -> dict:
@@ -85,7 +101,17 @@ class MediaInfo:
                 f"Video: {v.codec} {v.profile or ''} {v.width}x{v.height} "
                 f"{'HDR' if v.is_hdr else 'SDR'}".strip()
             )
-        if self.audio:
+        if self.audio_tracks:
+            if len(self.audio_tracks) == 1:
+                a = self.audio_tracks[0]
+                lines.append(
+                    f"Audio: {a.codec} {a.channels}ch {a.language or ''}".strip())
+            else:
+                lines.append("Audio:")
+                for a in self.audio_tracks:
+                    flag = " default" if a.default else ""
+                    lines.append(f"  [{a.audio_index}] {a.label()}{flag}")
+        elif self.audio:
             a = self.audio
             lines.append(f"Audio: {a.codec} {a.channels}ch {a.language or ''}".strip())
         if self.subtitle_tracks:
@@ -178,8 +204,10 @@ def build_media_info(src: Source, raw: dict) -> MediaInfo:
 
     video: VideoStream | None = None
     audio: AudioStream | None = None
+    audios: list[AudioStream] = []
     subs: list[SubtitleTrack] = []
     sub_counter = 0
+    audio_counter = 0
 
     for st in raw.get("streams", []):
         kind = st.get("codec_type")
@@ -198,15 +226,23 @@ def build_media_info(src: Source, raw: dict) -> MediaInfo:
                 frame_rate=_parse_frac(st.get("avg_frame_rate")),
                 is_hdr=_is_hdr(st),
             )
-        elif kind == "audio" and audio is None:
+        elif kind == "audio":
             tags = st.get("tags", {})
-            audio = AudioStream(
+            disp = st.get("disposition", {})
+            track = AudioStream(
                 index=st.get("index", 0),
                 codec=(st.get("codec_name") or "unknown").lower(),
                 channels=_to_int(st.get("channels")),
                 sample_rate=_to_int(st.get("sample_rate")),
                 language=tags.get("language"),
+                audio_index=audio_counter,
+                title=tags.get("title"),
+                default=bool(disp.get("default")),
             )
+            audios.append(track)
+            if audio is None:
+                audio = track
+            audio_counter += 1
         elif kind == "subtitle":
             codec = (st.get("codec_name") or "unknown").lower()
             tags = st.get("tags", {})
@@ -231,6 +267,7 @@ def build_media_info(src: Source, raw: dict) -> MediaInfo:
         duration=duration,
         video=video,
         audio=audio,
+        audio_tracks=audios,
         subtitle_tracks=subs,
     )
 

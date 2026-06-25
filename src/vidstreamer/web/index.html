@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vidstreamer</title>
+<style>
+  :root {
+    --bg: #0e1014;
+    --panel: #171a21;
+    --panel-2: #1f232c;
+    --line: #2a2f3a;
+    --text: #e8ebf0;
+    --muted: #8b93a3;
+    --accent: #5b8cff;
+    --accent-soft: #2a3a66;
+    --danger: #ff5b6e;
+    --ok: #43d17a;
+    --radius: 14px;
+    --shadow: 0 10px 40px rgba(0,0,0,.45);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: radial-gradient(1200px 700px at 70% -10%, #1a2030 0%, var(--bg) 55%);
+    color: var(--text);
+    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 40px 20px;
+  }
+  .app { width: 100%; max-width: 560px; }
+  header {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 22px;
+  }
+  .logo {
+    width: 30px; height: 30px; border-radius: 9px;
+    background: linear-gradient(135deg, var(--accent), #8a6bff);
+    display: grid; place-items: center; box-shadow: 0 4px 14px rgba(91,140,255,.4);
+  }
+  .logo svg { width: 17px; height: 17px; fill: #fff; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: .2px; }
+  .conn { margin-left: auto; display: flex; align-items: center; gap: 7px;
+          font-size: 13px; color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.live { background: var(--ok); box-shadow: 0 0 0 4px rgba(67,209,122,.18); }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  label.field { display: block; font-size: 12px; text-transform: uppercase;
+                letter-spacing: .6px; color: var(--muted); margin: 0 0 7px 2px; }
+  .row { display: flex; gap: 8px; }
+  .row + .field-block { margin-top: 14px; }
+  .field-block + .field-block { margin-top: 14px; }
+
+  input[type=text], select {
+    width: 100%; background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--text); border-radius: 10px; padding: 11px 12px; font-size: 14px;
+    outline: none; transition: border-color .15s, box-shadow .15s;
+    appearance: none;
+  }
+  input[type=text]:focus, select:focus {
+    border-color: var(--accent); box-shadow: 0 0 0 3px rgba(91,140,255,.18);
+  }
+  input[type=text]::placeholder { color: #5c6373; }
+  select {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path fill='%238b93a3' d='M6 8L1 3h10z'/></svg>");
+    background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px;
+  }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  button {
+    font: inherit; cursor: pointer; border: 1px solid var(--line);
+    background: var(--panel-2); color: var(--text); border-radius: 10px;
+    padding: 11px 14px; transition: background .15s, border-color .15s, transform .05s;
+    white-space: nowrap;
+  }
+  button:hover { background: #262b36; }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.ghost { background: transparent; }
+  button.primary {
+    background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600;
+    width: 100%; padding: 13px; margin-top: 4px;
+  }
+  button.primary:hover { background: #4d7ef5; }
+  button.icon { width: 44px; padding: 0; display: grid; place-items: center; }
+  button.icon svg { width: 18px; height: 18px; fill: var(--text); }
+
+  .hint { font-size: 12px; color: var(--muted); margin: 8px 2px 0; min-height: 16px; }
+  .hint.err { color: var(--danger); }
+  .hint.ok { color: var(--ok); }
+  .meta-chip { font-size: 12px; color: var(--muted); margin: 10px 2px 0;
+               display: none; gap: 8px; flex-wrap: wrap; }
+  .meta-chip span { background: var(--panel-2); border: 1px solid var(--line);
+                    padding: 3px 8px; border-radius: 7px; }
+
+  /* Player */
+  #player { display: none; }
+  .now { font-size: 15px; font-weight: 600; margin: 0 0 2px;
+         overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .now-sub { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+  .state-badge { color: var(--accent); }
+
+  .scrub-wrap { display: flex; align-items: center; gap: 12px; }
+  .transport { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .play-btn {
+    width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--accent); border-color: var(--accent);
+  }
+  .play-btn:hover { background: #4d7ef5; }
+  .play-btn svg { width: 22px; height: 22px; fill: #fff; }
+  .time { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted);
+          min-width: 46px; text-align: center; }
+
+  input[type=range] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 6px;
+    background: transparent; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-runnable-track {
+    height: 6px; border-radius: 99px;
+    background: linear-gradient(to right, var(--accent) var(--pct,0%), var(--line) var(--pct,0%));
+  }
+  input[type=range]::-moz-range-track { height: 6px; border-radius: 99px; background: var(--line); }
+  input[type=range]::-moz-range-progress { height: 6px; border-radius: 99px; background: var(--accent); }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 15px; height: 15px; margin-top: -4.5px;
+    border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.5);
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 15px; height: 15px; border: none; border-radius: 50%; background: #fff;
+  }
+  .vol-row { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
+  .vol-row svg { width: 20px; height: 20px; fill: var(--muted); flex: none; cursor: pointer; }
+  .vol-row .vol { max-width: 160px; }
+  .stop-row { margin-top: 18px; }
+  button.stop { color: var(--danger); border-color: #44262c; background: #20171a; width: 100%; }
+  button.stop:hover { background: #2a1d21; }
+
+  /* Modal */
+  .modal-back {
+    position: fixed; inset: 0; background: rgba(0,0,0,.55); backdrop-filter: blur(2px);
+    display: none; align-items: center; justify-content: center; padding: 20px; z-index: 10;
+  }
+  .modal-back.show { display: flex; }
+  .modal { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+           width: 100%; max-width: 520px; max-height: 76vh; display: flex; flex-direction: column;
+           box-shadow: var(--shadow); overflow: hidden; }
+  .modal h3 { margin: 0; padding: 16px 18px; font-size: 14px; border-bottom: 1px solid var(--line); }
+  .modal .cwd { padding: 8px 18px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line);
+                overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+  .filelist { overflow-y: auto; padding: 6px; }
+  .filelist .item { display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+                    border-radius: 9px; cursor: pointer; }
+  .filelist .item:hover { background: var(--panel-2); }
+  .filelist .item svg { width: 16px; height: 16px; fill: var(--muted); flex: none; }
+  .filelist .item.dir svg { fill: var(--accent); }
+  .filelist .item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .modal .foot { padding: 12px 18px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+    <h1>vidstreamer</h1>
+    <div class="conn"><span class="dot" id="connDot"></span><span id="connText">idle</span></div>
+  </header>
+
+  <!-- SETUP -->
+  <div class="card" id="setup">
+    <div class="field-block">
+      <label class="field" for="source">Video source</label>
+      <div class="row">
+        <input type="text" id="source" placeholder="/path/to/movie.mkv  or  https://…/stream.mp4" autocomplete="off">
+        <button class="icon" id="browseSrc" title="Browse files"><svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></button>
+      </div>
+      <div class="hint" id="srcHint"></div>
+      <div class="meta-chip" id="metaChip"></div>
+    </div>
+
+    <div class="field-block" id="trackBlock" style="display:none">
+      <div class="two">
+        <div>
+          <label class="field" for="audioSelect">Audio track</label>
+          <select id="audioSelect"></select>
+        </div>
+        <div>
+          <label class="field" for="subSelect">Subtitles</label>
+          <select id="subSelect"></select>
+        </div>
+      </div>
+      <div class="row" id="subFileRow" style="margin-top:12px">
+        <input type="text" id="subPath" placeholder="Optional sidecar subtitle (.srt / .vtt)" autocomplete="off">
+        <button class="icon" id="browseSub" title="Browse subtitles"><svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></button>
+      </div>
+    </div>
+
+    <div class="field-block">
+      <label class="field" for="deviceSelect">Cast device</label>
+      <div class="row">
+        <select id="deviceSelect"><option value="">Searching…</option></select>
+        <button class="icon" id="refreshDev" title="Rescan"><svg viewBox="0 0 24 24"><path d="M17.65 6.35A8 8 0 1 0 19.73 14h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4z"/></svg></button>
+      </div>
+      <input type="text" id="deviceManual" placeholder="…or type an IP / name (e.g. 192.168.68.100)" autocomplete="off" style="margin-top:8px">
+    </div>
+
+    <button class="primary" id="castBtn" disabled>Cast</button>
+    <div class="hint" id="castHint"></div>
+  </div>
+
+  <!-- PLAYER -->
+  <div class="card" id="player">
+    <p class="now" id="nowTitle">—</p>
+    <p class="now-sub"><span class="state-badge" id="stateBadge">IDLE</span> · <span id="deviceName"></span></p>
+
+    <div class="transport">
+      <button class="play-btn" id="playPause"><svg id="ppIcon" viewBox="0 0 24 24"><path d="M6 19h4V5H6zm8-14v14h4V5z"/></svg></button>
+      <div class="scrub-wrap" style="flex:1">
+        <span class="time" id="curTime">0:00</span>
+        <input type="range" id="seek" min="0" max="100" value="0" step="0.1" style="flex:1">
+        <span class="time" id="durTime">0:00</span>
+      </div>
+    </div>
+
+    <div class="vol-row">
+      <svg id="volIcon" viewBox="0 0 24 24"><path d="M3 10v4h4l5 5V5L7 10H3zm13.5 2a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z"/></svg>
+      <input type="range" id="volume" class="vol" min="0" max="1" step="0.01" value="1">
+    </div>
+
+    <div class="stop-row">
+      <button class="stop" id="stopBtn">Stop casting</button>
+    </div>
+  </div>
+</div>
+
+<!-- File browser modal -->
+<div class="modal-back" id="modalBack">
+  <div class="modal">
+    <h3 id="modalTitle">Choose a file</h3>
+    <div class="cwd" id="modalCwd"></div>
+    <div class="filelist" id="fileList"></div>
+    <div class="foot"><button class="ghost" id="modalClose">Cancel</button></div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const api = async (url, opts) => {
+  const r = await fetch(url, opts);
+  let body = {};
+  try { body = await r.json(); } catch (e) {}
+  return { ok: r.ok, body };
+};
+const fmt = (s) => {
+  if (s == null || isNaN(s)) return "0:00";
+  s = Math.max(0, Math.floor(s));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  const mm = h ? String(m).padStart(2, "0") : String(m);
+  return (h ? h + ":" : "") + mm + ":" + String(sec).padStart(2, "0");
+};
+const setHint = (el, msg, cls) => { el.textContent = msg || ""; el.className = "hint" + (cls ? " " + cls : ""); };
+
+let media = null;            // last probe result
+let poll = null;             // status poll timer
+let ticker = null;           // rAF interpolation
+let last = { t: 0, at: 0, state: null, dur: 0 };
+let seeking = false;
+let lastVol = 1;
+
+/* ---------- Probe ---------- */
+async function loadMedia() {
+  const src = $("source").value.trim();
+  if (!src) return;
+  setHint($("srcHint"), "Probing…");
+  $("castBtn").disabled = true;
+  const { ok, body } = await api("/api/probe", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source: src }),
+  });
+  if (!ok) { setHint($("srcHint"), body.error || "Could not read media", "err"); $("trackBlock").style.display = "none"; return; }
+  media = body;
+  renderMeta(body);
+  renderTracks(body);
+  setHint($("srcHint"), "Ready to cast", "ok");
+  $("castBtn").disabled = false;
+}
+
+function renderMeta(m) {
+  const chip = $("metaChip");
+  const bits = [];
+  if (m.video) bits.push((m.video.width && m.video.height ? m.video.width + "×" + m.video.height + " " : "") + m.video.codec.toUpperCase() + (m.video.hdr ? " HDR" : ""));
+  if (m.audio_tracks.length) bits.push(m.audio_tracks.length + " audio");
+  if (m.subtitle_tracks.length) bits.push(m.subtitle_tracks.length + " sub");
+  if (m.duration) bits.push(fmt(m.duration));
+  bits.push(m.is_remote ? "remote" : "local file");
+  chip.innerHTML = bits.map((b) => "<span>" + b + "</span>").join("");
+  chip.style.display = "flex";
+}
+
+function renderTracks(m) {
+  const a = $("audioSelect");
+  a.innerHTML = "";
+  if (!m.audio_tracks.length) {
+    a.innerHTML = "<option value=''>no audio</option>"; a.disabled = true;
+  } else {
+    a.disabled = false;
+    m.audio_tracks.forEach((t) => {
+      const o = document.createElement("option");
+      o.value = t.index; o.textContent = t.label + (t.default ? "  (default)" : "");
+      if (t.default) o.selected = true;
+      a.appendChild(o);
+    });
+  }
+  const s = $("subSelect");
+  s.innerHTML = "";
+  const none = new Option("None", "none"); s.add(none);
+  m.subtitle_tracks.forEach((t) => s.add(new Option(t.label, "embed:" + t.index)));
+  s.add(new Option("Sidecar file…", "sidecar"));
+  s.value = "none";
+  $("trackBlock").style.display = "block";
+}
+
+/* ---------- Devices ---------- */
+async function loadDevices() {
+  const sel = $("deviceSelect");
+  sel.innerHTML = "<option value=''>Searching…</option>";
+  const { body } = await api("/api/devices");
+  const list = (body && body.devices) || [];
+  sel.innerHTML = "";
+  if (!list.length) {
+    sel.add(new Option("No devices found — type an IP below", ""));
+  } else {
+    list.forEach((d) => sel.add(new Option(d.name + " · " + d.host, d.host)));
+  }
+}
+
+/* ---------- Cast ---------- */
+async function startCast() {
+  const src = $("source").value.trim();
+  if (!src) return;
+  const device = $("deviceManual").value.trim() || $("deviceSelect").value || null;
+  const payload = { source: src, device };
+
+  const sub = $("subSelect").value;
+  if (sub === "none") payload.no_subs = true;
+  else if (sub === "sidecar") payload.subtitle_path = $("subPath").value.trim();
+  else if (sub.startsWith("embed:")) payload.sub_track = sub.slice(6);
+
+  const a = $("audioSelect");
+  if (!a.disabled && a.value !== "") payload.audio_track = a.value;
+
+  $("castBtn").disabled = true;
+  setHint($("castHint"), "Connecting & starting playback…");
+  const { ok, body } = await api("/api/cast", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  $("castBtn").disabled = false;
+  if (!ok || !body.ok) { setHint($("castHint"), (body && body.error) || "Cast failed", "err"); return; }
+  setHint($("castHint"), "");
+  enterPlayer(body);
+}
+
+/* ---------- Player ---------- */
+function enterPlayer(st) {
+  $("setup").style.display = "none";
+  $("player").style.display = "block";
+  $("connDot").classList.add("live");
+  $("nowTitle").textContent = st.title || "Now casting";
+  $("deviceName").textContent = st.device || "";
+  applyStatus(st);
+  startPolling();
+  startTicker();
+}
+
+function exitPlayer() {
+  stopPolling();
+  if (ticker) cancelAnimationFrame(ticker), (ticker = null);
+  $("player").style.display = "none";
+  $("setup").style.display = "block";
+  $("connDot").classList.remove("live");
+  $("connText").textContent = "idle";
+}
+
+function applyStatus(st) {
+  if (!st.connected) return;
+  $("connText").textContent = st.device || "casting";
+  $("stateBadge").textContent = st.state || "—";
+  last.t = st.current_time || 0;
+  last.at = performance.now();
+  last.state = st.state;
+  last.dur = st.duration || last.dur || 0;
+  if (last.dur) { $("seek").max = last.dur; $("durTime").textContent = fmt(last.dur); }
+  setPlayIcon(st.state === "PLAYING");
+  if (st.volume != null && !volDragging) { $("volume").value = st.volume; paintRange($("volume")); lastVol = st.volume || lastVol; }
+  setVolIcon(st.muted || st.volume === 0);
+}
+
+function setPlayIcon(playing) {
+  $("ppIcon").innerHTML = playing
+    ? '<path d="M6 19h4V5H6zm8-14v14h4V5z"/>'           // pause
+    : '<path d="M8 5v14l11-7z"/>';                       // play
+}
+function setVolIcon(muted) {
+  $("volIcon").innerHTML = muted
+    ? '<path d="M3 10v4h4l5 5V5L7 10H3zm13 2 2.5 2.5 1-1L17 13l1.5-1.5-1-1L16 12l-2.5-2.5-1 1L15 13z"/>'
+    : '<path d="M3 10v4h4l5 5V5L7 10H3zm13.5 2a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z"/>';
+}
+
+function startTicker() {
+  const tick = () => {
+    let t = last.t;
+    if (last.state === "PLAYING") t += (performance.now() - last.at) / 1000;
+    if (last.dur) t = Math.min(t, last.dur);
+    if (!seeking) {
+      $("seek").value = t;
+      paintRange($("seek"));
+      $("curTime").textContent = fmt(t);
+    }
+    ticker = requestAnimationFrame(tick);
+  };
+  ticker = requestAnimationFrame(tick);
+}
+
+function paintRange(el) {
+  const pct = el.max > 0 ? (el.value / el.max) * 100 : 0;
+  el.style.setProperty("--pct", pct + "%");
+}
+
+/* ---------- Polling ---------- */
+function startPolling() {
+  stopPolling();
+  poll = setInterval(async () => {
+    const { body } = await api("/api/status");
+    if (!body.connected) { exitPlayer(); return; }
+    applyStatus(body);
+  }, 1500);
+}
+function stopPolling() { if (poll) clearInterval(poll), (poll = null); }
+
+async function control(action, value) {
+  await api("/api/control", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, value }),
+  });
+}
+
+/* ---------- File browser modal ---------- */
+let pickerKind = "video", pickerTarget = "source";
+async function openPicker(kind, target) {
+  pickerKind = kind; pickerTarget = target;
+  $("modalTitle").textContent = kind === "sub" ? "Choose a subtitle file" : "Choose a video file";
+  $("modalBack").classList.add("show");
+  const cur = $(target).value.trim();
+  await browseTo(cur || "");
+}
+async function browseTo(path) {
+  const { body } = await api("/api/fs?kind=" + pickerKind + "&path=" + encodeURIComponent(path || ""));
+  if (body.error) { $("modalCwd").textContent = body.error; return; }
+  $("modalCwd").textContent = body.path;
+  const list = $("fileList");
+  list.innerHTML = "";
+  if (body.parent) list.appendChild(fileItem("..", body.parent, true, true));
+  body.entries.forEach((e) => list.appendChild(fileItem(e.name, e.path, e.is_dir)));
+}
+function fileItem(name, path, isDir, isUp) {
+  const div = document.createElement("div");
+  div.className = "item" + (isDir ? " dir" : "");
+  const icon = isDir
+    ? '<svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>'
+    : '<svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8z"/></svg>';
+  div.innerHTML = icon + "<span>" + (isUp ? ".." : name) + "</span>";
+  div.onclick = () => { if (isDir) browseTo(path); else choosePath(path); };
+  return div;
+}
+function choosePath(path) {
+  $(pickerTarget).value = path;
+  $("modalBack").classList.remove("show");
+  if (pickerTarget === "source") loadMedia();
+  else if (pickerTarget === "subPath") { const s = $("subSelect"); s.value = "sidecar"; }
+}
+
+/* ---------- Wire up ---------- */
+let volDragging = false;
+$("source").addEventListener("change", loadMedia);
+$("source").addEventListener("keydown", (e) => { if (e.key === "Enter") loadMedia(); });
+$("browseSrc").onclick = () => openPicker("video", "source");
+$("browseSub").onclick = () => openPicker("sub", "subPath");
+$("refreshDev").onclick = loadDevices;
+$("castBtn").onclick = startCast;
+$("subPath").addEventListener("change", () => { if ($("subPath").value.trim()) $("subSelect").value = "sidecar"; });
+$("modalClose").onclick = () => $("modalBack").classList.remove("show");
+$("modalBack").onclick = (e) => { if (e.target === $("modalBack")) $("modalBack").classList.remove("show"); };
+
+$("playPause").onclick = () => {
+  const playing = last.state === "PLAYING";
+  control(playing ? "pause" : "resume");
+  last.state = playing ? "PAUSED" : "PLAYING";
+  last.t = +$("seek").value; last.at = performance.now();
+  setPlayIcon(!playing);
+};
+$("stopBtn").onclick = async () => { await control("stop"); exitPlayer(); };
+
+const seek = $("seek");
+seek.addEventListener("input", () => { seeking = true; paintRange(seek); $("curTime").textContent = fmt(+seek.value); });
+seek.addEventListener("change", async () => {
+  const v = +seek.value;
+  last.t = v; last.at = performance.now();
+  await control("seek", v);
+  seeking = false;
+});
+
+const vol = $("volume");
+vol.addEventListener("input", () => { volDragging = true; paintRange(vol); setVolIcon(+vol.value === 0); });
+vol.addEventListener("change", async () => { lastVol = +vol.value || lastVol; await control("volume", +vol.value); volDragging = false; });
+$("volIcon").onclick = async () => {
+  const muted = +vol.value === 0;
+  const target = muted ? (lastVol || 0.5) : 0;
+  vol.value = target; paintRange(vol); setVolIcon(target === 0);
+  await control("volume", target);
+};
+
+loadDevices();
+</script>
+</body>
+</html>

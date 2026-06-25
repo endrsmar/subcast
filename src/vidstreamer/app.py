@@ -33,6 +33,7 @@ class CastOptions:
     subtitle_path: str | None = None
     sub_track: str | None = None
     sub_lang: str | None = None
+    audio_track: int | None = None
     auto_subs: bool = False
     burn_subs: bool = False
     no_subs: bool = False
@@ -108,6 +109,7 @@ async def prepare_session(
         audio_codec=opts.audio_codec,
         max_height=opts.max_height,
         burn_in=sub_plan.burn_in is not None,
+        audio_track=opts.audio_track,
     )
     plan = plan_stream(info, plan_opts)
 

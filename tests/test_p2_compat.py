@@ -89,3 +89,31 @@ def test_v2_vp9_in_mkv_remux_to_webm():
 def test_v2_h264_level_too_high_transcodes():
     plan = plan_stream(mi("mp4", vlevel=62))  # > 5.1
     assert plan.video_action == "transcode"
+
+
+def _mi_multi_audio():
+    """An mp4 that would direct-play, but with two audio tracks."""
+    info = mi("mp4")
+    info.audio_tracks = [
+        AudioStream(index=1, codec="aac", channels=2, language="eng",
+                    audio_index=0, default=True),
+        AudioStream(index=2, codec="ac3", channels=6, language="ger",
+                    audio_index=1),
+    ]
+    info.audio = info.audio_tracks[0]
+    return info
+
+
+def test_v2_audio_track_default_stays_direct():
+    plan = plan_stream(_mi_multi_audio(), PlanOptions(audio_track=0))
+    assert plan.serve_mode == "direct_range"
+    assert plan.audio_index == 0
+
+
+def test_v2_audio_track_nondefault_forces_pipe_and_maps_index():
+    # Selecting the German ac3 track: must proxy via ffmpeg, transcode ac3->aac,
+    # and map 0:a:1.
+    plan = plan_stream(_mi_multi_audio(), PlanOptions(audio_track=1))
+    assert plan.serve_mode == "ffmpeg_pipe"
+    assert plan.audio_index == 1
+    assert plan.audio_action == "transcode"  # ac3 not Chromecast-compatible

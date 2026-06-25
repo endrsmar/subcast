@@ -57,6 +57,7 @@ def cli(ctx: click.Context, verbose: int) -> None:
 @click.argument("source")
 @click.option("-d", "--device", help="Target device by friendly name or IP.")
 @click.option("-s", "--subtitles", "subtitle_path", type=click.Path(), help="Sidecar subtitle file.")
+@click.option("--audio-track", type=int, help="Select an embedded audio track by index (0:a:N).")
 @click.option("--sub-track", help="Select an embedded subtitle track (index or language).")
 @click.option("--sub-lang", help="Preferred subtitle language for auto-selection.")
 @click.option("--auto-subs", is_flag=True, help="Auto-detect sidecar / default embedded subtitle.")
@@ -81,6 +82,19 @@ def cast(ctx: click.Context, source: str, **opts: object) -> None:
     from .app import run_cast
 
     run_cast(source, opts)
+
+
+@cli.command()
+@click.option("--host", default="127.0.0.1", show_default=True,
+              help="Address to bind the UI server.")
+@click.option("--port", type=int, default=8420, show_default=True,
+              help="Port for the UI server.")
+@click.option("--no-browser", is_flag=True, help="Don't auto-open a browser.")
+def ui(host: str, port: int, no_browser: bool) -> None:
+    """Launch the web UI (a local control panel in your browser)."""
+    from .webapp import run_ui
+
+    run_ui(host, port, open_browser=not no_browser)
 
 
 @cli.command()
