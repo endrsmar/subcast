@@ -123,6 +123,32 @@ async def test_v6_5_embedded_text_subtitle_e2e(media_dir, tmp_path):
         await session.close()
 
 
+async def test_start_offset_direct_uses_current_time(media_dir):
+    # Direct (Range-seekable) play: offset is handed to the device as current_time,
+    # and the served URL carries no ?t= (the device seeks via Range).
+    cc, session = await _session(str(media_dir / "compat.mp4"), media_dir, start=90.0)
+    try:
+        assert session.plan.serve_mode == "direct_range"
+        call = cc.media_controller.play_media_calls[0]
+        assert call["current_time"] == 90.0
+        assert "?t=" not in call["url"]
+    finally:
+        await session.close()
+
+
+async def test_start_offset_pipe_reorigins_stream(media_dir):
+    # ffmpeg pipe is non-seekable: offset is encoded in the URL (?t=) so ffmpeg
+    # restarts with -ss, and the device timeline starts at 0.
+    cc, session = await _session(str(media_dir / "remux.mkv"), media_dir, start=90.0)
+    try:
+        assert session.plan.serve_mode == "ffmpeg_pipe"
+        call = cc.media_controller.play_media_calls[0]
+        assert call["current_time"] == 0.0
+        assert "t=90.000" in call["url"]
+    finally:
+        await session.close()
+
+
 async def test_v6_6_remote_source_e2e(http_media_server, media_dir, tmp_path):
     url = f"{http_media_server}/compat.mp4"
     cc, session = await _session(url, media_dir)

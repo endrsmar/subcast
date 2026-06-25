@@ -84,6 +84,74 @@ def srt_to_webvtt(srt_text: str) -> str:
     return "\n".join(out_lines) + "\n"
 
 
+def _parse_vtt_time(tok: str) -> float:
+    """Parse a WebVTT timestamp token (HH:MM:SS.mmm or MM:SS.mmm) to seconds."""
+    parts = tok.replace(",", ".").split(":")
+    if len(parts) == 3:
+        h, m, s = parts
+    elif len(parts) == 2:
+        h, m, s = "0", parts[0], parts[1]
+    else:
+        raise ValueError(f"bad VTT timestamp: {tok!r}")
+    return int(h) * 3600 + int(m) * 60 + float(s)
+
+
+def _fmt_vtt_time(t: float) -> str:
+    if t < 0:
+        t = 0.0
+    h = int(t // 3600)
+    t -= h * 3600
+    m = int(t // 60)
+    t -= m * 60
+    return f"{h:02d}:{m:02d}:{t:06.3f}"
+
+
+def shift_vtt(vtt_text: str, offset: float) -> str:
+    """Subtract ``offset`` seconds from every cue, dropping cues that end before 0.
+
+    Used when the video stream is re-origined at a start offset (ffmpeg-pipe path):
+    the device clock restarts at 0, so cue timings must move back to match.
+    """
+    if offset <= 0:
+        return vtt_text
+    blocks = re.split(r"\r?\n\r?\n", vtt_text.strip())
+    out_blocks: list[str] = []
+    for i, block in enumerate(blocks):
+        lines = block.split("\n")
+        ts_idx = next((j for j, ln in enumerate(lines) if "-->" in ln), None)
+        if ts_idx is None:  # header or note block — keep as-is
+            out_blocks.append(block)
+            continue
+        left, _, rest = lines[ts_idx].partition("-->")
+        rest = rest.strip()
+        end_tok = rest.split()[0] if rest else ""
+        settings = rest[len(end_tok):].strip()
+        try:
+            start = _parse_vtt_time(left.strip()) - offset
+            end = _parse_vtt_time(end_tok) - offset
+        except ValueError:
+            out_blocks.append(block)
+            continue
+        if end <= 0:  # cue lies entirely before the start point
+            continue
+        timing = f"{_fmt_vtt_time(start)} --> {_fmt_vtt_time(end)}"
+        if settings:
+            timing += " " + settings
+        lines[ts_idx] = timing
+        out_blocks.append("\n".join(lines))
+    return "\n\n".join(out_blocks) + "\n"
+
+
+def shift_vtt_file(path: str, offset: float) -> None:
+    """In-place variant of :func:`shift_vtt`."""
+    if offset <= 0:
+        return
+    with open(path, encoding="utf-8") as fh:
+        text = fh.read()
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(shift_vtt(text, offset))
+
+
 def convert_sidecar_to_vtt(src_path: str, dst_path: str) -> str:
     """Read a sidecar subtitle file and write a UTF-8 WebVTT to dst_path."""
     if not os.path.isfile(src_path):
@@ -97,18 +165,40 @@ def convert_sidecar_to_vtt(src_path: str, dst_path: str) -> str:
     return dst_path
 
 
-def extract_embedded_to_vtt(input_path: str, sub_index: int, dst_path: str) -> str:
-    """Extract an embedded *text* subtitle stream (0:s:N) to a WebVTT file."""
+def extract_embedded_to_vtt(
+    input_path: str, sub_index: int, dst_path: str, *, is_remote: bool = False
+) -> str:
+    """Extract an embedded *text* subtitle stream (0:s:N) to a WebVTT file.
+
+    Note: ffmpeg must read the whole container to collect all subtitle packets
+    (they are interleaved throughout). For a remote source this means downloading
+    the entire file, so this can take a long time; ``is_remote`` adds reconnect /
+    I/O-timeout flags so a stalled connection errors out instead of hanging
+    forever.
+    """
     ffmpeg = find_binary("ffmpeg")
-    cmd = [
-        ffmpeg, "-y", "-i", input_path,
-        "-map", f"0:s:{sub_index}", "-f", "webvtt", dst_path,
-    ]
+    cmd = [ffmpeg, "-nostdin", "-y"]
+    if is_remote:
+        # Survive transient network drops; error (don't hang) on a dead socket.
+        cmd += [
+            "-reconnect", "1", "-reconnect_streamed", "1",
+            "-reconnect_on_network_error", "1", "-reconnect_delay_max", "5",
+            "-rw_timeout", "30000000",  # 30s with no I/O progress -> fail
+        ]
+    cmd += ["-i", input_path, "-map", f"0:s:{sub_index}", "-f", "webvtt", dst_path]
     log.debug("extract subs: %s", " ".join(cmd))
+    if is_remote:
+        log.warning("extracting embedded subtitles from a remote source reads the "
+                    "entire file; this can take several minutes")
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
+        hint = ""
+        if is_remote:
+            hint = (" (remote extraction is slow/fragile; prefer a sidecar file via "
+                    "-s <subs.srt>, or --no-subs)")
         raise SourceError(
-            f"failed to extract subtitle track {sub_index}: {proc.stderr.strip()[-500:]}"
+            f"failed to extract subtitle track {sub_index}: "
+            f"{proc.stderr.strip()[-500:]}{hint}"
         )
     return dst_path
 
@@ -223,6 +313,7 @@ def prepare_subtitles(plan: SubtitlePlan, info: MediaInfo, workdir: str,
         plan.vtt_path = dst
     elif plan.mode == "embedded_text":
         dst = os.path.join(workdir, "sub.vtt")
-        extract_embedded_to_vtt(info.ffmpeg_input, plan.sub_index or 0, dst)
+        extract_embedded_to_vtt(info.ffmpeg_input, plan.sub_index or 0, dst,
+                                is_remote=info.is_remote)
         plan.vtt_path = dst
     return plan

@@ -11,6 +11,7 @@ from vidstreamer.subtitles import (
     convert_sidecar_to_vtt,
     plan_subtitles,
     prepare_subtitles,
+    shift_vtt,
     srt_to_webvtt,
 )
 from vidstreamer.transcode import build_ffmpeg_command
@@ -18,6 +19,23 @@ from vidstreamer.transcode import build_ffmpeg_command
 
 def _is_valid_vtt(text: str) -> bool:
     return text.lstrip().startswith("WEBVTT")
+
+
+def test_shift_vtt_offsets_and_drops_past_cues():
+    vtt = ("WEBVTT\n\n"
+           "00:09:58.000 --> 00:09:59.500\nskipped\n\n"
+           "00:10:05.250 --> 00:10:08.000\nkept\n\n"
+           "00:10:09.000 --> 00:10:10.000 align:start\nstyled\n")
+    out = shift_vtt(vtt, 600)
+    assert out.startswith("WEBVTT")
+    assert "skipped" not in out                       # cue before offset dropped
+    assert "00:00:05.250 --> 00:00:08.000" in out     # 605.25s - 600s
+    assert "00:00:09.000 --> 00:00:10.000 align:start" in out  # settings preserved
+
+
+def test_shift_vtt_noop_for_zero_offset():
+    vtt = "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nhi\n"
+    assert shift_vtt(vtt, 0) == vtt
 
 
 def test_v3_1_srt_to_webvtt_basic():

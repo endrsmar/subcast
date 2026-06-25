@@ -19,7 +19,12 @@ from .errors import VidstreamerError
 from .probe import MediaInfo, probe_source
 from .server import MediaServer
 from .source import resolve_source
-from .subtitles import SubtitlePlan, plan_subtitles, prepare_subtitles
+from .subtitles import (
+    SubtitlePlan,
+    plan_subtitles,
+    prepare_subtitles,
+    shift_vtt_file,
+)
 
 
 @dataclass
@@ -38,6 +43,7 @@ class CastOptions:
     max_height: int | None = None
     bind_ip: str | None = None
     port: int = 0
+    start: float = 0.0
     volume: float | None = None
     timeout: float = 8.0
     non_interactive: bool = False
@@ -106,7 +112,21 @@ async def prepare_session(
     plan = plan_stream(info, plan_opts)
 
     workdir = tempfile.mkdtemp(prefix="vidstreamer-")
+    if sub_plan.mode == "embedded_text" and info.is_remote:
+        click.echo(
+            "Extracting embedded subtitles from a remote source — this downloads "
+            "the whole file and may take several minutes.\n"
+            "  Ctrl-C to cancel; for a faster result pass a sidecar file with "
+            "-s <subs.srt>, or skip subs with --no-subs.",
+            err=True,
+        )
     sub_plan = prepare_subtitles(sub_plan, info, workdir, opts.subtitle_path)
+
+    # When the stream is re-origined at a start offset (ffmpeg-pipe path), the
+    # device clock restarts at 0, so the subtitle cues must shift to match. Direct
+    # play keeps the absolute timeline (current_time=start), so leave cues alone.
+    if opts.start > 0 and sub_plan.vtt_path and plan.serve_mode != "direct_range":
+        shift_vtt_file(sub_plan.vtt_path, opts.start)
 
     # --- Local HTTP server ---
     server = MediaServer(
@@ -139,14 +159,28 @@ async def prepare_session(
     if opts.volume is not None:
         caster.set_volume(opts.volume)
 
+    # --- Start offset ---
+    # Direct (Range-seekable) play: hand the device the offset and let it seek.
+    # ffmpeg pipe is non-seekable, so instead re-origin the stream at the offset
+    # via ?t=<sec> (server maps it to ffmpeg -ss); the device timeline starts at 0.
+    video_url = handles.video_url
+    current_time = 0.0
+    if opts.start > 0:
+        if plan.serve_mode == "direct_range":
+            current_time = opts.start
+        else:
+            sep = "&" if "?" in video_url else "?"
+            video_url = f"{video_url}{sep}t={opts.start:.3f}"
+
     title = resolve_source(source).basename
     caster.play(
-        handles.video_url,
+        video_url,
         plan.content_type,
         title=title or "vidstreamer",
         subtitles=handles.subtitle_url,
         subtitles_lang=sub_plan.language,
         stream_type=STREAM_BUFFERED,
+        current_time=current_time,
     )
 
     return Session(
@@ -166,6 +200,8 @@ def run_cast(source: str, opts_dict: dict) -> None:
         click.echo(f"  serving: {h.video_url}  ({session.plan.content_type})")
         if h.subtitle_url:
             click.echo(f"  subtitles: {h.subtitle_url}")
+        if opts.start > 0:
+            click.echo(f"  start: {opts.start:g}s")
         click.echo(f"  plan: {session.plan.summary().splitlines()[0]}")
         await _report_status(session)
         try:
