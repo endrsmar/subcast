@@ -12,6 +12,33 @@ from .config import check_dependencies, setup_logging
 from .errors import VidstreamerError
 
 
+def _parse_timecode(value: str) -> float:
+    """Parse a start offset given as seconds (``90``, ``90.5``) or a timecode
+    (``MM:SS`` / ``HH:MM:SS``) into seconds."""
+    parts = value.strip().split(":")
+    try:
+        if len(parts) == 1:
+            return float(parts[0])
+        if len(parts) == 2:
+            return int(parts[0]) * 60 + float(parts[1])
+        if len(parts) == 3:
+            return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+    except ValueError:
+        pass
+    raise click.BadParameter(
+        f"invalid time {value!r}; use seconds (e.g. 90) or HH:MM:SS (e.g. 1:23:45)"
+    )
+
+
+def _start_callback(ctx: click.Context, param: click.Parameter, value: str | None) -> float:
+    if value is None:
+        return 0.0
+    secs = _parse_timecode(value)
+    if secs < 0:
+        raise click.BadParameter("start time must be >= 0")
+    return secs
+
+
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
 @click.version_option(__version__, "-V", "--version", prog_name="vidstreamer")
 @click.option("-v", "--verbose", count=True, help="Increase verbosity (-v, -vv).")
@@ -42,6 +69,8 @@ def cli(ctx: click.Context, verbose: int) -> None:
 @click.option("--max-height", type=int, help="Cap output height (px) when transcoding.")
 @click.option("--bind-ip", help="LAN IP to advertise to the device.")
 @click.option("--port", type=int, default=0, help="HTTP server port (0 = ephemeral).")
+@click.option("--start", callback=_start_callback,
+              help="Start playback at this offset (seconds or HH:MM:SS).")
 @click.option("--volume", type=float, help="Initial volume 0.0-1.0.")
 @click.option("--timeout", type=float, default=8.0, help="Device discovery timeout (s).")
 @click.option("--non-interactive", is_flag=True, help="No prompts; exit after starting playback.")
