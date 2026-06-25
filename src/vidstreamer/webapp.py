@@ -193,6 +193,31 @@ async def api_probe(request: web.Request) -> web.Response:
     return web.json_response(_info_payload(info))
 
 
+async def api_library(request: web.Request) -> web.Response:
+    """Recursively list videos under the media root for the library sidebar.
+
+    Imported lazily to avoid a circular import (``library`` pulls ``VIDEO_EXTS``
+    from this module).
+    """
+    from . import library
+
+    refresh = request.query.get("refresh") in ("1", "true", "yes")
+    root = load_settings().media_root
+    if not root or not os.path.isdir(root):
+        return web.json_response({
+            "root": root, "items": [], "count": 0,
+            "error": "media root is not a valid directory",
+        })
+    try:
+        items = await _run(library.scan_library, root, refresh)
+    except Exception as exc:
+        log.exception("library scan failed")
+        return web.json_response(
+            {"root": root, "items": [], "count": 0, "error": str(exc)}
+        )
+    return web.json_response({"root": root, "items": items, "count": len(items)})
+
+
 async def api_fs(request: web.Request) -> web.Response:
     """List a local directory for the in-browser file picker.
 
@@ -564,6 +589,7 @@ def build_app() -> web.Application:
     app.router.add_get("/", index)
     app.router.add_get("/api/devices", api_devices)
     app.router.add_post("/api/probe", api_probe)
+    app.router.add_get("/api/library", api_library)
     app.router.add_get("/api/fs", api_fs)
     app.router.add_get("/api/settings", api_settings_get)
     app.router.add_post("/api/settings", api_settings_post)
