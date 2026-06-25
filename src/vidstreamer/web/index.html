@@ -135,6 +135,25 @@
   .vol-row { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
   .vol-row svg { width: 20px; height: 20px; fill: var(--muted); flex: none; cursor: pointer; }
   .vol-row .vol { max-width: 160px; }
+  .sub-row { margin-top: 18px; }
+  .sub-row .sub-head { display: flex; align-items: baseline; justify-content: space-between;
+                       margin: 0 2px 8px; }
+  .sub-row .sub-label { font-size: 12px; text-transform: uppercase; letter-spacing: .6px;
+                        color: var(--muted); }
+  .sub-row .sub-val { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--text); }
+  .sub-row input[type=range] { margin: 2px 0 2px; }
+  .sub-scale { display: flex; justify-content: space-between; font-size: 11px;
+               color: var(--muted); margin: 2px 2px 0; font-variant-numeric: tabular-nums; }
+  .sub-foot { display: flex; align-items: center; justify-content: space-between;
+              gap: 10px; margin-top: 12px; }
+  .sub-custom { display: flex; align-items: center; gap: 6px; }
+  .sub-custom input { width: 78px; background: var(--panel-2); border: 1px solid var(--line);
+                      color: var(--text); border-radius: 8px; padding: 7px 9px; font-size: 13px;
+                      outline: none; text-align: right; }
+  .sub-custom input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(91,140,255,.18); }
+  .sub-custom .unit { color: var(--muted); font-size: 13px; }
+  .sub-foot button { padding: 7px 12px; font-size: 13px; }
+  .sub-foot button.mid { color: var(--muted); }
   .stop-row { margin-top: 18px; }
   button.stop { color: var(--danger); border-color: #44262c; background: #20171a; width: 100%; }
   button.stop:hover { background: #2a1d21; }
@@ -230,6 +249,23 @@
       <input type="range" id="volume" class="vol" min="0" max="1" step="0.01" value="1">
     </div>
 
+    <div class="sub-row" id="subRow" style="display:none">
+      <div class="sub-head">
+        <span class="sub-label">Subtitle sync</span>
+        <span class="sub-val" id="subOffVal">in sync</span>
+      </div>
+      <input type="range" id="subSlider" min="-5" max="5" step="0.1" value="0">
+      <div class="sub-scale"><span>−5s earlier</span><span>0</span><span>+5s later</span></div>
+      <div class="sub-foot">
+        <button class="mid" id="subReset" title="Reset to 0">reset</button>
+        <div class="sub-custom">
+          <input type="text" id="subCustom" inputmode="decimal" placeholder="e.g. -3.2" autocomplete="off">
+          <span class="unit">s</span>
+          <button id="subApply" title="Apply custom offset">set</button>
+        </div>
+      </div>
+    </div>
+
     <div class="stop-row">
       <button class="stop" id="stopBtn">Stop casting</button>
     </div>
@@ -269,6 +305,9 @@ let ticker = null;           // rAF interpolation
 let last = { t: 0, at: 0, state: null, dur: 0 };
 let seeking = false;
 let lastVol = 1;
+let subOffset = 0;           // manual subtitle delay (s); positive = subs later
+let subBusy = false;         // true while a track reload is in flight
+let subDragging = false;     // true while the offset slider is being dragged
 
 /* ---------- Probe ---------- */
 async function loadMedia() {
@@ -383,6 +422,7 @@ function exitPlayer() {
   $("setup").style.display = "block";
   $("connDot").classList.remove("live");
   $("connText").textContent = "idle";
+  subOffset = 0; subBusy = false; subDragging = false; renderSubOff();
 }
 
 function applyStatus(st) {
@@ -397,6 +437,44 @@ function applyStatus(st) {
   setPlayIcon(st.state === "PLAYING");
   if (st.volume != null && !volDragging) { $("volume").value = st.volume; paintRange($("volume")); lastVol = st.volume || lastVol; }
   setVolIcon(st.muted || st.volume === 0);
+  $("subRow").style.display = st.subtitles ? "block" : "none";
+  if (st.subtitles && !subBusy && !subDragging && typeof st.sub_offset === "number") {
+    subOffset = st.sub_offset; renderSubOff();
+  }
+}
+
+function renderSubOff() {
+  const v = $("subOffVal");
+  if (Math.abs(subOffset) < 0.0005) v.textContent = "in sync";
+  else v.textContent = (subOffset > 0 ? "+" : "−") + Math.abs(subOffset).toFixed(1) +
+                       "s " + (subOffset > 0 ? "(later)" : "(earlier)");
+  if (!subDragging) {
+    const sl = $("subSlider");
+    sl.value = Math.max(-5, Math.min(5, subOffset));
+    paintRange(sl);
+  }
+}
+
+function setSubDisabled(d) {
+  ["subSlider", "subReset", "subCustom", "subApply"].forEach((id) => ($(id).disabled = d));
+}
+
+// Commit a chosen offset: rewrites + reloads the track on the device. The
+// reload is near-instant for local files but rebuffers a piped/remote stream.
+async function applySubOffset(val) {
+  if (subBusy) return;
+  subOffset = Math.round(val * 10) / 10;
+  renderSubOff();
+  subBusy = true; setSubDisabled(true);
+  await control("sub_offset", subOffset);
+  subBusy = false; setSubDisabled(false);
+}
+
+function commitCustom() {
+  const val = parseFloat($("subCustom").value.trim().replace(",", "."));
+  if (isNaN(val)) return;
+  $("subCustom").value = "";
+  applySubOffset(val);
 }
 
 function setPlayIcon(playing) {
@@ -426,7 +504,8 @@ function startTicker() {
 }
 
 function paintRange(el) {
-  const pct = el.max > 0 ? (el.value / el.max) * 100 : 0;
+  const min = +el.min || 0, max = +el.max || 0;
+  const pct = max > min ? ((el.value - min) / (max - min)) * 100 : 0;
   el.style.setProperty("--pct", pct + "%");
 }
 
@@ -503,6 +582,17 @@ $("playPause").onclick = () => {
   setPlayIcon(!playing);
 };
 $("stopBtn").onclick = async () => { await control("stop"); exitPlayer(); };
+
+const subSlider = $("subSlider");
+subSlider.addEventListener("input", () => {
+  subDragging = true; subOffset = +subSlider.value; paintRange(subSlider); renderSubOff();
+});
+subSlider.addEventListener("change", async () => {
+  subDragging = false; await applySubOffset(+subSlider.value);
+});
+$("subReset").onclick = () => applySubOffset(0);
+$("subApply").onclick = commitCustom;
+$("subCustom").addEventListener("keydown", (e) => { if (e.key === "Enter") commitCustom(); });
 
 const seek = $("seek");
 seek.addEventListener("input", () => { seeking = true; paintRange(seek); $("curTime").textContent = fmt(+seek.value); });

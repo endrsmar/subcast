@@ -72,6 +72,9 @@ def cli(ctx: click.Context, verbose: int) -> None:
 @click.option("--port", type=int, default=0, help="HTTP server port (0 = ephemeral).")
 @click.option("--start", callback=_start_callback,
               help="Start playback at this offset (seconds or HH:MM:SS).")
+@click.option("--sub-offset", type=float, default=0.0,
+              help="Shift subtitle timing by N seconds (positive = subs appear "
+                   "later, negative = earlier). Fixes de-synced subs.")
 @click.option("--volume", type=float, help="Initial volume 0.0-1.0.")
 @click.option("--timeout", type=float, default=8.0, help="Device discovery timeout (s).")
 @click.option("--non-interactive", is_flag=True, help="No prompts; exit after starting playback.")

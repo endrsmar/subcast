@@ -50,12 +50,19 @@ class UIState:
         # add this base to the device's reported time to show absolute position.
         self.seek_base: float = 0.0
         self.orig_vtt: str | None = None  # original WebVTT, for re-shift on seek
+        # Manual subtitle delay (seconds; positive = subs later). Applied live by
+        # rewriting the served WebVTT and reloading the track on the device.
+        self.sub_offset: float = 0.0
+        # Bumped on every track rewrite so the reload URL changes and the receiver
+        # re-fetches instead of serving a cached copy of the old timing.
+        self.sub_version: int = 0
         self.lock = asyncio.Lock()
 
     async def teardown(self) -> None:
         sess, self.session = self.session, None
         self.seek_base = 0.0
         self.orig_vtt = None
+        self.sub_offset = 0.0
         if sess is not None:
             try:
                 await sess.close()
@@ -146,6 +153,7 @@ def _status_payload(state: UIState) -> dict:
         "device": getattr(cast_info, "friendly_name", None),
         "serve_mode": s.plan.serve_mode,
         "subtitles": s.server.handles.subtitle_url is not None,
+        "sub_offset": state.sub_offset,
     }
 
 
@@ -276,31 +284,99 @@ async def api_status(request: web.Request) -> web.Response:
     return web.json_response(_status_payload(state))
 
 
+def _write_vtt(state: UIState, seek_base: float) -> None:
+    """Rewrite the served WebVTT for the given device-clock origin.
+
+    The net cue shift combines the re-origin (``seek_base``) with the manual
+    subtitle delay: cues move back by ``seek_base`` and forward by ``sub_offset``.
+    """
+    s = state.session
+    if s is None or not state.orig_vtt or not s.subtitle_plan.vtt_path:
+        return
+    shifted = shift_vtt(state.orig_vtt, seek_base - state.sub_offset)
+    Path(s.subtitle_plan.vtt_path).write_text(shifted, encoding="utf-8")
+
+
+def _next_sub_url(state: UIState) -> str | None:
+    """Cache-busting subtitle URL so the receiver re-fetches the rewritten track.
+
+    Busts on the URL *path* (``/sub/<n>.vtt``), not a query string: the Chromecast
+    receiver keys its track cache on the path and ignores ``?v=``, so a query-only
+    change would keep serving the stale timing. The server serves the current VTT
+    for any ``/sub/{name}`` path.
+    """
+    s = state.session
+    if s is None or not s.server.handles.subtitle_url:
+        return None
+    state.sub_version += 1
+    return f"{s.server.base_url}/sub/{state.sub_version}.vtt"
+
+
+def _device_position(state: UIState) -> float:
+    """Current absolute playback position, in source time."""
+    s = state.session
+    if s is None:
+        return 0.0
+    dev_time = getattr(s.caster.status, "current_time", None) or 0.0
+    return state.seek_base + dev_time
+
+
+async def _reload(state: UIState, pos: float) -> None:
+    """Reload media at absolute ``pos`` with the freshly-written subtitle track.
+
+    Used by both seek (pipe streams) and any subtitle-offset change, since a
+    side-loaded track can only be replaced on the device by re-issuing the load.
+    """
+    s = state.session
+    if s is None:
+        return
+    h = s.server.handles
+    direct = s.plan.serve_mode == "direct_range"
+    seek_base = 0.0 if direct else pos
+    # Clear any on-screen cue first, or it sticks across the reload and later
+    # cues stack on top of it.
+    if h.subtitle_url:
+        await _run(s.caster.disable_subtitles)
+    _write_vtt(state, seek_base)
+    sub_url = _next_sub_url(state)
+    video_url = h.video_url if direct else f"{h.video_url}?t={pos:.3f}"
+    current_time = pos if direct else 0.0
+
+    def _play():
+        s.caster.play(
+            video_url, s.plan.content_type, title=state.title,
+            subtitles=sub_url, subtitles_lang=s.subtitle_plan.language,
+            stream_type=STREAM_BUFFERED, current_time=current_time,
+        )
+
+    await _run(_play)
+    state.seek_base = seek_base
+
+
 async def _seek(state: UIState, pos: float) -> None:
     s = state.session
     if s is None:
         return
     if s.plan.serve_mode == "direct_range":
+        # Seekable on the device; the absolute-timed track stays valid as-is.
         await _run(s.caster.seek, pos)
         state.seek_base = 0.0
         return
     # Pipe streams aren't seekable on the device: reload at the offset, which
     # restarts the device clock at 0, and shift the WebVTT to match.
-    h = s.server.handles
-    if state.orig_vtt and s.subtitle_plan.vtt_path:
-        shifted = shift_vtt(state.orig_vtt, pos)
-        Path(s.subtitle_plan.vtt_path).write_text(shifted, encoding="utf-8")
-    video_url = f"{h.video_url}?t={pos:.3f}"
+    await _reload(state, pos)
 
-    def _play():
-        s.caster.play(
-            video_url, s.plan.content_type, title=state.title,
-            subtitles=h.subtitle_url, subtitles_lang=s.subtitle_plan.language,
-            stream_type=STREAM_BUFFERED,
-        )
 
-    await _run(_play)
-    state.seek_base = pos
+async def _apply_sub_offset(state: UIState, offset: float) -> None:
+    """Change the subtitle delay live and reload the track at the current spot."""
+    s = state.session
+    if s is None or not state.orig_vtt:
+        return
+    state.sub_offset = offset
+    await _run(_refresh, s)
+    pos = _device_position(state)
+    log.info("subtitle offset -> %+.1fs; reloading track at %.1fs", offset, pos)
+    await _reload(state, pos)
 
 
 async def api_control(request: web.Request) -> web.Response:
@@ -323,6 +399,8 @@ async def api_control(request: web.Request) -> web.Response:
             await _run(s.caster.set_volume, float(value))
         elif action == "seek":
             await _seek(state, float(value))
+        elif action == "sub_offset":
+            await _apply_sub_offset(state, float(value))
         else:
             return web.json_response({"ok": False, "error": f"unknown action {action!r}"},
                                      status=400)

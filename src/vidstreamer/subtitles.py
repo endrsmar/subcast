@@ -109,10 +109,12 @@ def _fmt_vtt_time(t: float) -> str:
 def shift_vtt(vtt_text: str, offset: float) -> str:
     """Subtract ``offset`` seconds from every cue, dropping cues that end before 0.
 
-    Used when the video stream is re-origined at a start offset (ffmpeg-pipe path):
-    the device clock restarts at 0, so cue timings must move back to match.
+    A positive ``offset`` moves cues *earlier* (used when the ffmpeg-pipe stream is
+    re-origined at a start offset: the device clock restarts at 0, so cue timings
+    must move back to match). A negative ``offset`` moves cues *later* — this is how
+    a manual subtitle delay is applied. Zero is a no-op.
     """
-    if offset <= 0:
+    if offset == 0:
         return vtt_text
     blocks = re.split(r"\r?\n\r?\n", vtt_text.strip())
     out_blocks: list[str] = []
@@ -144,7 +146,7 @@ def shift_vtt(vtt_text: str, offset: float) -> str:
 
 def shift_vtt_file(path: str, offset: float) -> None:
     """In-place variant of :func:`shift_vtt`."""
-    if offset <= 0:
+    if offset == 0:
         return
     with open(path, encoding="utf-8") as fh:
         text = fh.read()

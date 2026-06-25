@@ -38,6 +38,14 @@ def test_shift_vtt_noop_for_zero_offset():
     assert shift_vtt(vtt, 0) == vtt
 
 
+def test_shift_vtt_negative_offset_delays_cues():
+    # A negative offset moves cues later (manual subtitle delay) and drops nothing.
+    vtt = "WEBVTT\n\n00:00:10.000 --> 00:00:12.000\nhi\n"
+    out = shift_vtt(vtt, -3)
+    assert "00:00:13.000 --> 00:00:15.000" in out
+    assert "hi" in out
+
+
 def test_v3_1_srt_to_webvtt_basic():
     srt = ("1\n00:00:00,500 --> 00:00:01,500\nHello\n\n"
            "2\n00:00:02,000 --> 00:00:02,800\nWorld\n")

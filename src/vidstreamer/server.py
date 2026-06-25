@@ -140,8 +140,13 @@ class MediaServer:
     async def _subtitle(self, request: web.Request) -> web.StreamResponse:
         if not self.vtt_path or not os.path.isfile(self.vtt_path):
             raise web.HTTPNotFound()
+        # Logged so a live subtitle-offset change is visibly confirmed: the device
+        # must re-fetch this for the new timing to take effect.
+        log.info("subtitle fetched by %s: %s", request.remote, request.path)
         resp = web.FileResponse(self.vtt_path, headers=_with_cors())
         resp.headers["Content-Type"] = "text/vtt; charset=utf-8"
+        # Defeat any receiver-side caching of the track between reloads.
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
         return resp
 
     async def _video(self, request: web.Request) -> web.StreamResponse:

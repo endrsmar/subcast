@@ -45,6 +45,7 @@ class CastOptions:
     bind_ip: str | None = None
     port: int = 0
     start: float = 0.0
+    sub_offset: float = 0.0
     volume: float | None = None
     timeout: float = 8.0
     non_interactive: bool = False
@@ -69,6 +70,12 @@ class Session:
         try:
             await self.server.stop()
         finally:
+            # Actively stop the device. Without this the receiver keeps playing
+            # from its (large) prebuffer for ~30s after we tear the server down.
+            try:
+                self.caster.stop()
+            except Exception as exc:  # best-effort; device may already be gone
+                log.debug("device stop failed: %s", exc)
             self.caster.disconnect()
             shutil.rmtree(self.workdir, ignore_errors=True)
 
@@ -124,11 +131,17 @@ async def prepare_session(
         )
     sub_plan = prepare_subtitles(sub_plan, info, workdir, opts.subtitle_path)
 
-    # When the stream is re-origined at a start offset (ffmpeg-pipe path), the
-    # device clock restarts at 0, so the subtitle cues must shift to match. Direct
-    # play keeps the absolute timeline (current_time=start), so leave cues alone.
-    if opts.start > 0 and sub_plan.vtt_path and plan.serve_mode != "direct_range":
-        shift_vtt_file(sub_plan.vtt_path, opts.start)
+    # Two independent cue adjustments, combined into a single shift:
+    #   * Start re-origin: when the ffmpeg-pipe stream is re-origined at a start
+    #     offset the device clock restarts at 0, so cues move back by `start`.
+    #     Direct play keeps the absolute timeline (current_time=start), so it's 0.
+    #   * Manual sub-offset: a user correction for de-synced subs. Positive delays
+    #     the subtitles (cues later), so it subtracts from the re-origin shift.
+    if sub_plan.vtt_path:
+        shift = opts.start if (opts.start > 0 and plan.serve_mode != "direct_range") else 0.0
+        shift -= opts.sub_offset
+        if shift != 0:
+            shift_vtt_file(sub_plan.vtt_path, shift)
 
     # --- Local HTTP server ---
     server = MediaServer(
@@ -204,6 +217,8 @@ def run_cast(source: str, opts_dict: dict) -> None:
             click.echo(f"  subtitles: {h.subtitle_url}")
         if opts.start > 0:
             click.echo(f"  start: {opts.start:g}s")
+        if opts.sub_offset:
+            click.echo(f"  sub-offset: {opts.sub_offset:+g}s (positive = subs later)")
         click.echo(f"  plan: {session.plan.summary().splitlines()[0]}")
         await _report_status(session)
         try:

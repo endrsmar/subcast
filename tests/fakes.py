@@ -36,6 +36,10 @@ class FakeMediaController:
 
     def enable_subtitle(self, track_id):
         self.enabled_subtitles.append(track_id)
+        self.control_calls.append(("enable_subtitle", track_id))
+
+    def disable_subtitle(self):
+        self.control_calls.append(("disable_subtitle",))
 
     def pause(self):
         self.control_calls.append(("pause",))

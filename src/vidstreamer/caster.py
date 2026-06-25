@@ -65,6 +65,20 @@ class Caster:
                 update()
             self.mc.enable_subtitle(SUBTITLE_TRACK_ID)
 
+    def disable_subtitles(self) -> None:
+        """Turn captions off on the receiver, clearing any cue currently painted.
+
+        Called before a track-swapping reload: a cue that is on screen at reload
+        time would otherwise stick (the receiver never sees its end) and later
+        cues pile on top of it.
+        """
+        fn = getattr(self.mc, "disable_subtitle", None)
+        if callable(fn):
+            try:
+                fn()
+            except Exception as exc:  # best-effort; not all states accept it
+                log.debug("disable_subtitle failed: %s", exc)
+
     # -- controls --------------------------------------------------------- #
 
     def pause(self) -> None:
