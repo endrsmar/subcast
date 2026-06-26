@@ -144,6 +144,32 @@ def test_search_online_parses_results(monkeypatch):
     assert "query=Movie" in captured["url"]
 
 
+def test_search_online_sorted_by_similarity(monkeypatch):
+    """Online results are ranked by filename similarity, not API order."""
+    def fake_urlopen(req, timeout=None):
+        return _FakeResp({
+            "data": [
+                # Listed worst-match first; a high download count must NOT float
+                # an unrelated subtitle above a closely-matching one.
+                {"id": "a", "attributes": {
+                    "language": "en", "release": "Some Other Movie",
+                    "download_count": 99999,
+                    "files": [{"file_id": 1, "file_name": "Some.Other.Movie.srt"}],
+                }},
+                {"id": "b", "attributes": {
+                    "language": "en", "release": "BluRay", "download_count": 5,
+                    "files": [{"file_id": 2,
+                               "file_name": "The.Big.Movie.2021.1080p.srt"}],
+                }},
+            ],
+        })
+
+    monkeypatch.setattr(subsearch.urllib.request, "urlopen", fake_urlopen)
+    results = subsearch.search_online("/m/The.Big.Movie.2021.1080p.mkv", "en", "KEY")
+    assert [r["file_id"] for r in results] == [2, 1]
+    assert results[0]["score"] > results[1]["score"]
+
+
 def test_search_online_network_error_wrapped(monkeypatch):
     import urllib.error
 

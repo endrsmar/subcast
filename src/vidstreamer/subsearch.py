@@ -53,6 +53,13 @@ def _tokens(name: str) -> set[str]:
     return {t for t in _normalize(name).split() if t}
 
 
+def _similarity(a: set[str], b: set[str]) -> float:
+    """Jaccard token overlap in [0, 1] between two filename token sets."""
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
+
+
 def _is_sub(path: str) -> bool:
     return os.path.splitext(path)[1].lower() in _EXT_RANK
 
@@ -229,7 +236,8 @@ def search_online(
 
     Requires a non-empty ``api_key``; otherwise raises :class:`SubSearchError`.
     Returns candidates as
-    ``[{"id", "name", "lang", "release", "download_count", "file_id"}]``.
+    ``[{"id", "name", "lang", "release", "download_count", "file_id", "score"}]``,
+    ranked by filename similarity to the video (download count breaks ties).
     """
     if not api_key:
         raise SubSearchError(
@@ -237,6 +245,7 @@ def search_online(
             "set one in Settings"
         )
     query = Path(video_path).stem
+    want = _tokens(query)
     params = {"query": query}
     if preferred_lang:
         params["languages"] = preferred_lang.lower()
@@ -244,21 +253,33 @@ def search_online(
     body = _os_request(url, api_key)
 
     results: list[dict] = []
-    for item in (body.get("data") or [])[:limit]:
+    for item in (body.get("data") or []):
         attrs = item.get("attributes") or {}
         files = attrs.get("files") or []
         file_id = files[0].get("file_id") if files else None
-        name = (files[0].get("file_name") if files else None) or attrs.get("release") \
-            or query
+        fname = files[0].get("file_name") if files else None
+        release = attrs.get("release") or ""
+        name = fname or release or query
+        lang = attrs.get("language") or "und"
+        downloads = attrs.get("download_count") or 0
+        # Rank by how closely the subtitle's name/release matches the video file
+        # name (Jaccard over normalized tokens), with a small nudge for the
+        # preferred language. Download count is only a tiebreaker.
+        score = _similarity(want, _tokens(f"{name} {release}"))
+        if preferred_lang and lang.lower().startswith(preferred_lang.lower()):
+            score += 0.05
         results.append({
             "id": item.get("id"),
             "name": name,
-            "lang": attrs.get("language") or "und",
-            "release": attrs.get("release") or "",
-            "download_count": attrs.get("download_count") or 0,
+            "lang": lang,
+            "release": release,
+            "download_count": downloads,
             "file_id": file_id,
+            "score": round(score, 4),
         })
-    return results
+    # Most similar to the video filename first; downloads break ties.
+    results.sort(key=lambda r: (r["score"], r["download_count"]), reverse=True)
+    return results[:limit]
 
 
 def download_online(file_id: str, api_key: str, dest_dir: str) -> str:

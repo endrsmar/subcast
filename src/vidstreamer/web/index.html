@@ -481,8 +481,10 @@
   /* Subtitle search area */
   .sub-search { margin-top: 12px; }
   .sub-found { font-size: 12px; color: var(--ok); margin: 9px 2px 0; display: none; }
-  .sub-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .sub-actions { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
   .sub-actions button { padding: 9px 13px; font-size: 13px; }
+  .sub-actions select { width: auto; min-width: 116px; flex: 0 0 auto;
+                        padding: 9px 30px 9px 12px; font-size: 13px; }
   .sub-results { margin-top: 12px; display: none; }
   .sub-results .res {
     display: flex; align-items: center; gap: 10px; padding: 9px 11px;
@@ -582,6 +584,7 @@
       <div class="sub-found" id="subFound"></div>
       <div class="sub-search">
         <div class="sub-actions">
+          <select id="subLang" title="Subtitle language" aria-label="Subtitle search language"></select>
           <button id="searchLocal" title="Search the media root for matching subtitles">Search subtitles</button>
           <button id="searchOnline" title="Search OpenSubtitles">Search online</button>
         </div>
@@ -757,11 +760,25 @@ async function loadMedia() {
 
 /* ---------- Subtitle search ---------- */
 let onlineAvailable = false;
+let lastSubSearch = null;   // "local" | "online" — to re-run when the language changes
+const subLangVal = () => ($("subLang") && $("subLang").value) || "";
+
+// Populate the search-side language selector (defaults to the saved preference)
+// and reflect whether an OpenSubtitles key is configured.
+async function initSubLang() {
+  const { ok, body } = await api("/api/settings");
+  const s = (ok && body) || {};
+  fillLangSelect($("subLang"), s.preferred_sub_lang, s.system_language);
+  onlineAvailable = !!s.has_api_key;
+  $("searchOnline").disabled = !onlineAvailable;
+}
+
 function clearSubSearch() {
   $("subFound").style.display = "none";
   $("subResults").style.display = "none";
   $("subResults").innerHTML = "";
   setHint($("subSearchHint"), "");
+  lastSubSearch = null;
 }
 
 // After a probe, look for a same-name sidecar (and media-root matches) and, if a
@@ -770,7 +787,7 @@ async function autoFindSubs(src) {
   clearSubSearch();
   const { ok, body } = await api("/api/subsearch", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ source: src }),
+    body: JSON.stringify({ source: src, lang: subLangVal() }),
   });
   if (!ok) return;
   onlineAvailable = !!body.online_available;
@@ -790,11 +807,12 @@ async function autoFindSubs(src) {
 async function searchLocal() {
   const src = $("source").value.trim();
   if (!src) return;
+  lastSubSearch = "local";
   setHint($("subSearchHint"), "Searching media root…");
   $("subResults").style.display = "none";
   const { ok, body } = await api("/api/subsearch", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ source: src }),
+    body: JSON.stringify({ source: src, lang: subLangVal() }),
   });
   if (!ok) { setHint($("subSearchHint"), (body && body.error) || "Search failed", "err"); return; }
   const list = (body && body.local) || [];
@@ -822,11 +840,12 @@ async function searchOnline() {
   const src = $("source").value.trim();
   if (!src) return;
   if (!onlineAvailable) { setHint($("subSearchHint"), "Set an OpenSubtitles API key in Settings first.", "err"); return; }
+  lastSubSearch = "online";
   setHint($("subSearchHint"), "Searching OpenSubtitles…");
   $("searchOnline").disabled = true;
   const { ok, body } = await api("/api/subsearch/online", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ source: src }),
+    body: JSON.stringify({ source: src, lang: subLangVal() }),
   });
   $("searchOnline").disabled = false;
   if (!ok) { setHint($("subSearchHint"), (body && body.error) || "Online search failed", "err"); return; }
@@ -1247,6 +1266,11 @@ $("modalPickDir").onclick = () => { if (pickerPath) choosePath(pickerPath); };
 
 $("searchLocal").onclick = searchLocal;
 $("searchOnline").onclick = searchOnline;
+// Re-run the active search when the language changes so results stay relevant.
+$("subLang").addEventListener("change", () => {
+  if (lastSubSearch === "online") searchOnline();
+  else if (lastSubSearch === "local") searchLocal();
+});
 
 $("openSettings").onclick = openSettings;
 $("settingsClose").onclick = () => $("settingsBack").classList.remove("show");
@@ -1480,6 +1504,7 @@ document.body.classList.add("has-art");
 
 loadDevices();
 loadLibrary(false);
+initSubLang();
 </script>
 </body>
 </html>

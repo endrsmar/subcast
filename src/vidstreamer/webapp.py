@@ -308,6 +308,8 @@ async def api_subsearch(request: web.Request) -> web.Response:
     data = await request.json()
     source = (data.get("source") or "").strip()
     settings = load_settings()
+    # An explicit per-search language overrides the saved preference.
+    lang = (data.get("lang") or "").strip() or settings.preferred_sub_lang
     local = _local_path(source)
     if local is None:
         return web.json_response({
@@ -316,10 +318,8 @@ async def api_subsearch(request: web.Request) -> web.Response:
         })
 
     def _work():
-        sidecar = subsearch.find_sidecar(local, settings.preferred_sub_lang)
-        matches = subsearch.search_media_root(
-            local, settings.media_root, settings.preferred_sub_lang
-        )
+        sidecar = subsearch.find_sidecar(local, lang)
+        matches = subsearch.search_media_root(local, settings.media_root, lang)
         # Don't list the same-folder sidecar again under "local".
         if sidecar:
             matches = [m for m in matches if m["path"] != sidecar]
@@ -337,6 +337,7 @@ async def api_subsearch_online(request: web.Request) -> web.Response:
     data = await request.json()
     source = (data.get("source") or "").strip()
     settings = load_settings()
+    lang = (data.get("lang") or "").strip() or settings.preferred_sub_lang
     name = source
     local = _local_path(source)
     if local:
@@ -344,7 +345,7 @@ async def api_subsearch_online(request: web.Request) -> web.Response:
     try:
         results = await _run(
             subsearch.search_online, name,
-            settings.preferred_sub_lang, settings.opensubtitles_api_key,
+            lang, settings.opensubtitles_api_key,
         )
     except SubSearchError as exc:
         return web.json_response({"error": str(exc)}, status=400)
