@@ -101,6 +101,9 @@ function applyLibrary(items) {
   libItems = items;
   document.getElementById('libCount').textContent = items.length + ' videos';
   renderLibrary();
+  // The sidebar is an overlay drawer (off-canvas by default) — slide it in so the
+  // element capture frames the populated panel rather than its hidden position.
+  document.getElementById('shell').classList.add('lib-open');
 }
 
 function applyFull(items) {
@@ -118,13 +121,30 @@ function applyFull(items) {
   setSetupArt('House of the Dragon', { key: 'tv_houseofthedragon', query: 'House of the Dragon', kind: 'tv', year: '' });
 }
 
+function applyDrawer(items) {
+  // Setup view with the library drawer slid OPEN over the centred card + scrim.
+  // Inlined (not calling applyFull) because each apply() is serialized standalone.
+  // eslint-disable-next-line no-undef
+  libItems = items;
+  document.getElementById('libCount').textContent = items.length + ' videos';
+  renderLibrary();
+  document.body.classList.add('has-art');
+  document.getElementById('source').value =
+    'https://host/House.of.the.Dragon.S02E08.1080p.WEB-DL.mkv';
+  // eslint-disable-next-line no-undef
+  setSetupArt('House of the Dragon', { key: 'tv_houseofthedragon', query: 'House of the Dragon', kind: 'tv', year: '' });
+  document.getElementById('shell').classList.add('lib-open');
+  document.getElementById('libToggle').setAttribute('aria-expanded', 'true');
+}
+
 const SCENES = {
   setup:    { width: 620,  selector: '.app',          apply: null },
   player:   { width: 620,  selector: '#player',       apply: applyPlayer },
   settings: { width: 620,  selector: '#settingsBack .modal', apply: applySettings },
-  // ≥821px so the sidebar is in desktop flow (below 820px it slides off-canvas).
   library:  { width: 900,  selector: '#sidebar',      apply: applyLibrary, arg: SAMPLE_LIBRARY },
   full:     { width: 1200, selector: null, fullPage: true, apply: applyFull, arg: SAMPLE_LIBRARY },
+  // Drawer open over the cast card at desktop width (full-page so the scrim shows).
+  drawer:   { width: 1200, selector: null, fullPage: true, apply: applyDrawer, arg: SAMPLE_LIBRARY },
 };
 
 // ---- chrome / playwright resolution ----
