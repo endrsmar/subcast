@@ -64,6 +64,22 @@ _EPISODE_PATTERNS = [
 ]
 
 
+# A release year. The last one in a movie name marks the end of the real
+# title; trailing source/codec/group tags (some of which aren't enumerable
+# release tokens) follow it.
+_YEAR_RE = re.compile(r"\b(19|20)\d{2}\b")
+
+
+def _trim_after_year(text: str) -> str:
+    """Drop release junk after a movie's (last) release year, keeping the year.
+
+    A no-op when the text has no year (e.g. series episodes, year-less names),
+    leaving those to ``_strip_release_tokens`` alone.
+    """
+    matches = list(_YEAR_RE.finditer(text))
+    return text[: matches[-1].end()].strip() if matches else text
+
+
 def _clean_text(text: str) -> str:
     """Turn a raw filename fragment into a readable, title-cased-ish string."""
     text = text.replace(".", " ").replace("_", " ").replace("-", " ")
@@ -120,7 +136,7 @@ def parse_episode(filename: str) -> dict | None:
 def clean_title(filename: str) -> str:
     """Cleaned display title for a video file (extension + release noise off)."""
     stem = os.path.splitext(os.path.basename(filename))[0]
-    cleaned = _clean_text(stem)
+    cleaned = _trim_after_year(_clean_text(stem))
     return _title_case(_strip_release_tokens(cleaned)) or _title_case(cleaned) or stem
 
 

@@ -120,8 +120,17 @@ def describe(title: str, series: str | None = None) -> dict | None:
     if not base:
         return None
 
-    year = "" if series else (m.group(0) if (m := _YEAR_RE.search(base)) else "")
-    name = _YEAR_RE.sub(" ", base) if year else base
+    # For a movie, the (last) release year marks the end of the real title;
+    # anything after it is release noise (source/group tags like ``DCPRiP``,
+    # ``LiNE`` or a ``-Robo29`` group that we can't enumerate as tokens). Take
+    # the text before the year, falling back to the year-stripped base when the
+    # year is the leading token. Series ignore year entirely.
+    year = ""
+    name = base
+    if not series and (matches := list(_YEAR_RE.finditer(base))):
+        m = matches[-1]
+        year = m.group(0)
+        name = base[: m.start()].strip() or _YEAR_RE.sub(" ", base)
     name = re.sub(r"\s+", " ", name).strip()
 
     slug = _slug(name)

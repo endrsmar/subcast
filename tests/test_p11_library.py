@@ -49,6 +49,11 @@ def test_clean_title_strips_noise():
     assert library.clean_title("Inception.2010.1080p.BluRay.x264.mkv") \
         == "Inception 2010"
     assert library.clean_title("some_movie_name.mp4") == "Some Movie Name"
+    # Trailing source/group tags after the year aren't enumerable release
+    # tokens, but the year anchors the end of the title and they're dropped.
+    assert library.clean_title(
+        "Star-Wars-The-Mandalorian-and-Grogu-2026-1080p-DCPRiP-LiNE-x264-Robo29.mkv"
+    ) == "Star Wars The Mandalorian And Grogu 2026"
 
 
 # --------------------------------------------------------------------------- #

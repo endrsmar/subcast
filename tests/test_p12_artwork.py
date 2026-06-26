@@ -40,6 +40,22 @@ def test_describe_movie_strips_year_from_query_keeps_in_key():
     assert d["kind"] == "movie"
 
 
+def test_describe_movie_drops_trailing_release_junk_after_year():
+    # Release/source/group tags after the year aren't enumerable tokens; the
+    # year anchors the end of the real title, so the query stops there.
+    d = artwork.describe("Star Wars The Mandalorian and Grogu 2026 DCPRiP LiNE Robo29")
+    assert d["query"] == "Star Wars The Mandalorian and Grogu"
+    assert d["year"] == "2026"
+    assert d["key"] == "mv_starwarsthemandalorianandgrogu_2026"
+
+
+def test_describe_movie_uses_last_year_so_titles_with_a_year_survive():
+    # "Blade Runner 2049" released in 2017 -> title keeps its in-name year.
+    d = artwork.describe("Blade Runner 2049 2017 1080p BluRay")
+    assert d["query"] == "Blade Runner 2049"
+    assert d["year"] == "2017"
+
+
 def test_describe_series_is_year_agnostic_and_tv():
     a = artwork.describe("The Wire S01E01", "The Wire")
     b = artwork.describe("The Wire S05E10", "The Wire")
