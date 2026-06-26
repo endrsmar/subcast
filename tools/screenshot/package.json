@@ -1,0 +1,14 @@
+{
+  "name": "vidstreamer-screenshot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Headless-Chrome screenshot harness for the vidstreamer web UI",
+  "bin": { "vidshot": "shoot.mjs" },
+  "scripts": {
+    "shoot": "node shoot.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.40.0"
+  }
+}
