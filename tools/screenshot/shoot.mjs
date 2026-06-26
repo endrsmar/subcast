@@ -19,6 +19,8 @@
 //   --full-page        capture the whole page instead of an element
 //   --scale <n>        deviceScaleFactor (default: 2)
 //   --index <path>     override the index.html location
+//   --art <dir>        inject cached posters (<key>.jpg) from an art_library dir
+//                      so tiles show real artwork instead of the gradient
 //   --list             print available scenes and exit
 //
 // Chrome resolution: $CHROME_PATH, then common system paths, then Playwright's
@@ -50,13 +52,18 @@ function parseArgs(argv) {
 // Each scene: { width, selector, apply } where apply() runs in the page to
 // drive the UI into the desired state. apply() may reference the page's own
 // top-level helpers (setNowArt, paintRange, renderLibrary, …) by name.
+// `art` mirrors the {key, query, kind, year} descriptor the real backend attaches
+// to each library item (see artwork.describe). The harness can inject matching
+// cached posters by key via --art (otherwise tiles render the gradient).
+const HOTD_ART = { key: 'tv_houseofthedragon', query: 'House of the Dragon', kind: 'tv', year: '' };
+const BEAR_ART = { key: 'tv_thebear', query: 'The Bear', kind: 'tv', year: '' };
 const SAMPLE_LIBRARY = [
-  { title: 'Dune: Part Two', series: null, path: '/media/movies/Dune Part Two (2024).mkv', dir: 'movies', name: 'Dune Part Two (2024).mkv', mtime: 1718000000, season: null, episode: null, ep_title: null },
-  { title: 'Blade Runner 2049', series: null, path: '/media/movies/Blade Runner 2049.mkv', dir: 'movies', name: 'Blade Runner 2049.mkv', mtime: 1717000000, season: null, episode: null, ep_title: null },
-  { title: 'House of the Dragon S02E07', series: 'House of the Dragon', path: '/media/tv/HotD/S02E07.mkv', dir: 'tv/HotD', name: 'S02E07.mkv', mtime: 1719000000, season: 2, episode: 7, ep_title: 'The Red Sowing' },
-  { title: 'House of the Dragon S02E08', series: 'House of the Dragon', path: '/media/tv/HotD/S02E08.mkv', dir: 'tv/HotD', name: 'S02E08.mkv', mtime: 1719500000, season: 2, episode: 8, ep_title: 'The Queen Who Ever Was' },
-  { title: 'The Bear S03E01', series: 'The Bear', path: '/media/tv/TheBear/S03E01.mkv', dir: 'tv/TheBear', name: 'S03E01.mkv', mtime: 1716000000, season: 3, episode: 1, ep_title: 'Tomorrow' },
-  { title: 'The Bear S03E02', series: 'The Bear', path: '/media/tv/TheBear/S03E02.mkv', dir: 'tv/TheBear', name: 'S03E02.mkv', mtime: 1716100000, season: 3, episode: 2, ep_title: 'Next' },
+  { title: 'Dune: Part Two', series: null, path: '/media/movies/Dune Part Two (2024).mkv', dir: 'movies', name: 'Dune Part Two (2024).mkv', mtime: 1718000000, season: null, episode: null, ep_title: null, art: { key: 'mv_duneparttwo', query: 'Dune Part Two', kind: 'movie', year: '' } },
+  { title: 'Blade Runner 2049', series: null, path: '/media/movies/Blade Runner 2049.mkv', dir: 'movies', name: 'Blade Runner 2049.mkv', mtime: 1717000000, season: null, episode: null, ep_title: null, art: { key: 'mv_bladerunner_2049', query: 'Blade Runner', kind: 'movie', year: '2049' } },
+  { title: 'House of the Dragon S02E07', series: 'House of the Dragon', path: '/media/tv/HotD/S02E07.mkv', dir: 'tv/HotD', name: 'S02E07.mkv', mtime: 1719000000, season: 2, episode: 7, ep_title: 'The Red Sowing', art: HOTD_ART },
+  { title: 'House of the Dragon S02E08', series: 'House of the Dragon', path: '/media/tv/HotD/S02E08.mkv', dir: 'tv/HotD', name: 'S02E08.mkv', mtime: 1719500000, season: 2, episode: 8, ep_title: 'The Queen Who Ever Was', art: HOTD_ART },
+  { title: 'The Bear S03E01', series: 'The Bear', path: '/media/tv/TheBear/S03E01.mkv', dir: 'tv/TheBear', name: 'S03E01.mkv', mtime: 1716000000, season: 3, episode: 1, ep_title: 'Tomorrow', art: BEAR_ART },
+  { title: 'The Bear S03E02', series: 'The Bear', path: '/media/tv/TheBear/S03E02.mkv', dir: 'tv/TheBear', name: 'S03E02.mkv', mtime: 1716100000, season: 3, episode: 2, ep_title: 'Next', art: BEAR_ART },
 ];
 
 function applyPlayer() {
@@ -69,7 +76,7 @@ function applyPlayer() {
   $('deviceName').textContent = 'Living Room TV';
   $('connText').textContent = 'Living Room TV';
   document.body.classList.add('casting', 'has-art');
-  setNowArt(title);
+  setNowArt(title, { key: 'tv_houseofthedragon', query: 'House of the Dragon', kind: 'tv', year: '' });
   last.dur = 7245; last.t = 1325; last.at = performance.now(); last.state = 'PLAYING';
   $('stateBadge').textContent = 'PLAYING';
   setPlayIcon(true);
@@ -103,6 +110,12 @@ function applyFull(items) {
   document.getElementById('libCount').textContent = items.length + ' videos';
   renderLibrary();
   document.body.classList.add('has-art');
+  // Pretend a source was entered so the setup backdrop reflects its poster
+  // (matches what /api/probe returns for an entered URL/path).
+  document.getElementById('source').value =
+    'https://host/House.of.the.Dragon.S02E08.1080p.WEB-DL.mkv';
+  // eslint-disable-next-line no-undef
+  setSetupArt('House of the Dragon', { key: 'tv_houseofthedragon', query: 'House of the Dragon', kind: 'tv', year: '' });
 }
 
 const SCENES = {
@@ -170,7 +183,40 @@ page.on('pageerror', () => {});           // swallow the offline API errors fire
 await page.goto(pathToFileURL(indexPath).href, { waitUntil: 'domcontentloaded' });
 
 if (scene.apply) await page.evaluate(scene.apply, scene.arg);
-await page.waitForTimeout(300);           // let transitions settle
+
+// Inject real cached art (no backend needed). The --art dir is an art_library:
+// <key>.jpg is a poster, <key>.bg.jpg a wide backdrop. We map each to its
+// composite id (poster -> key, backdrop -> "backdrop:key"), point the page's
+// artUrlFor at the local files, mark them ready, and let the real onArtReady /
+// applyToEl do the rest (so backdrops fill, posters tile, the player bg swaps).
+if (args.art) {
+  const artDir = resolve(args.art);
+  const { readdirSync } = await import('fs');
+  const dirUrl = pathToFileURL(join(artDir, '/')).href;
+  const entries = readdirSync(artDir)
+    .filter((f) => f.endsWith('.jpg'))
+    .map((f) => {
+      const isBg = f.endsWith('.bg.jpg');
+      const key = f.slice(0, f.length - (isBg ? '.bg.jpg'.length : '.jpg'.length));
+      return { cid: isBg ? 'backdrop:' + key : key, key,
+               variant: isBg ? 'backdrop' : 'poster', url: dirUrl + f };
+    });
+  await page.evaluate((entries) => {
+    const map = {};
+    entries.forEach((e) => (map[e.cid] = e.url));
+    // eslint-disable-next-line no-undef, no-global-assign
+    artUrlFor = (cid) => map[cid] || ('/api/art/' + cid);   // resolve to local files
+    entries.forEach((e) => {
+      // eslint-disable-next-line no-undef
+      const d = artDesc.get(e.cid) || {};
+      d.key = e.key; d.variant = e.variant;
+      // eslint-disable-next-line no-undef
+      artDesc.set(e.cid, d); artState.set(e.cid, 'ready'); onArtReady(e.cid);
+    });
+  }, entries);
+}
+
+await page.waitForTimeout(400);           // let transitions + poster images settle
 
 if (fullPage) {
   await page.screenshot({ path: out, fullPage: true });

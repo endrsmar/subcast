@@ -94,6 +94,23 @@ def test_scan_library_fields(tmp_path):
     movie = byname["Inception.2010.1080p.mkv"]
     assert movie["series"] is None
     assert movie["title"] == "Inception 2010"
+    # Each item carries a stable poster descriptor for the UI's art fetch.
+    assert movie["art"]["key"] == "mv_inception_2010"
+    assert movie["art"]["kind"] == "movie"
+    assert ep["art"]["key"] == "tv_theshow" and ep["art"]["kind"] == "tv"
+
+
+def test_scan_library_skips_dependency_dirs(tmp_path):
+    # node_modules holds *.d.ts files that match the .ts (MPEG-TS) extension; they
+    # must not be picked up as videos.
+    (tmp_path / "Real.Movie.2020.mkv").write_text("v")
+    nm = tmp_path / "node_modules" / "pkg"
+    nm.mkdir(parents=True)
+    (nm / "index.d.ts").write_text("x")
+    (tmp_path / "build").mkdir()
+    (tmp_path / "build" / "bundle.ts").write_text("x")
+    items = library.scan_library(str(tmp_path), refresh=True)
+    assert {i["name"] for i in items} == {"Real.Movie.2020.mkv"}
 
 
 def test_scan_library_invalid_root():

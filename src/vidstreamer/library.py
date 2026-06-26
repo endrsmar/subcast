@@ -16,11 +16,22 @@ from __future__ import annotations
 import os
 import re
 
+from . import artwork
 from .webapp import VIDEO_EXTS
 
 # Walk bounds — defensive caps so a pathological tree can't hang the UI.
 MAX_FILES = 50_000
 MAX_DEPTH = 10
+
+# Dependency / build / VCS directories that never hold real media but can
+# contain huge numbers of files. Notably ``node_modules`` is full of TypeScript
+# ``*.d.ts`` files, which match the ``.ts`` (MPEG-TS) video extension and would
+# otherwise show up as bogus "videos". Pruned from the walk by name.
+_SKIP_DIRS = {
+    "node_modules", "bower_components", "build", "dist", "out", "target",
+    "__pycache__", "venv", "env", "site-packages", ".git", ".svn", ".hg",
+    ".tox", ".cache", ".mypy_cache", ".pytest_cache", ".ruff_cache",
+}
 
 # Common release/junk tokens stripped from display titles (resolution, codec,
 # source, container-y bits). Matched case-insensitively as whole words.
@@ -139,6 +150,9 @@ def _make_item(path: str) -> dict:
         item["season"] = ep["season"]
         item["episode"] = ep["episode"]
         item["ep_title"] = ep["ep_title"] or None
+    # Stable poster descriptor (key/query/kind) so the UI can request real
+    # artwork; ``None`` when no usable title remains (the UI keeps its gradient).
+    item["art"] = artwork.describe(title, item["series"])
     return item
 
 
@@ -147,8 +161,11 @@ def _walk(media_root: str) -> list[dict]:
     root = os.path.abspath(media_root)
     base_depth = root.rstrip(os.sep).count(os.sep)
     for dirpath, dirnames, filenames in os.walk(root):
-        # Skip hidden directories in-place so os.walk doesn't descend them.
-        dirnames[:] = sorted(d for d in dirnames if not d.startswith("."))
+        # Skip hidden + dependency/build directories in-place so os.walk doesn't
+        # descend them.
+        dirnames[:] = sorted(
+            d for d in dirnames if not d.startswith(".") and d not in _SKIP_DIRS
+        )
         depth = dirpath.rstrip(os.sep).count(os.sep) - base_depth
         if depth >= MAX_DEPTH:
             dirnames[:] = []

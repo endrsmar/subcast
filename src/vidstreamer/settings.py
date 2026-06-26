@@ -66,6 +66,7 @@ class Settings:
     media_root: str = ""
     preferred_sub_lang: str = ""
     opensubtitles_api_key: str = ""
+    tmdb_api_key: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -76,6 +77,7 @@ def _defaults() -> Settings:
         media_root=os.getcwd(),
         preferred_sub_lang=system_language(),
         opensubtitles_api_key="",
+        tmdb_api_key="",
     )
 
 

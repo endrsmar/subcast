@@ -20,7 +20,7 @@ from pathlib import Path
 import click
 from aiohttp import web
 
-from . import discovery, subsearch
+from . import artwork, discovery, subsearch
 from .app import CastOptions, Session, prepare_session
 from .caster import STREAM_BUFFERED
 from .config import log
@@ -49,6 +49,9 @@ class UIState:
     def __init__(self) -> None:
         self.session: Session | None = None
         self.title: str = "vidstreamer"
+        # Poster descriptor ({key, query, kind} or None) for the casting title,
+        # so the player screen can show real artwork — not just a gradient.
+        self.art: dict | None = None
         # For ffmpeg-pipe streams a seek re-origins the device clock to 0, so we
         # add this base to the device's reported time to show absolute position.
         self.seek_base: float = 0.0
@@ -66,6 +69,7 @@ class UIState:
         self.seek_base = 0.0
         self.orig_vtt = None
         self.sub_offset = 0.0
+        self.art = None
         if sess is not None:
             try:
                 await sess.close()
@@ -82,6 +86,15 @@ async def _run(fn, *args):
 # --------------------------------------------------------------------------- #
 # Serialization
 # --------------------------------------------------------------------------- #
+
+def _art_for_source(source: str) -> dict | None:
+    """Poster descriptor for a source from its filename (lazy library import)."""
+    from . import library
+
+    title = os.path.basename(source.rstrip("/")) or source
+    ep = library.parse_episode(title)
+    return artwork.describe(library.clean_title(title), ep["series"] if ep else None)
+
 
 def _info_payload(info: MediaInfo) -> dict:
     return {
@@ -157,6 +170,7 @@ def _status_payload(state: UIState) -> dict:
         "serve_mode": s.plan.serve_mode,
         "subtitles": s.server.handles.subtitle_url is not None,
         "sub_offset": state.sub_offset,
+        "art": state.art,
     }
 
 
@@ -190,7 +204,11 @@ async def api_probe(request: web.Request) -> web.Response:
     except Exception as exc:
         log.exception("probe failed")
         return web.json_response({"error": str(exc)}, status=500)
-    return web.json_response(_info_payload(info))
+    payload = _info_payload(info)
+    # Attach a poster descriptor so the setup screen can show real artwork as its
+    # backdrop the moment a source is entered (before any cast).
+    payload["art"] = _art_for_source(source)
+    return web.json_response(payload)
 
 
 async def api_library(request: web.Request) -> web.Response:
@@ -216,6 +234,48 @@ async def api_library(request: web.Request) -> web.Response:
             {"root": root, "items": [], "count": 0, "error": str(exc)}
         )
     return web.json_response({"root": root, "items": items, "count": len(items)})
+
+
+async def api_art(request: web.Request) -> web.Response:
+    """Serve a cached poster by key, or 404 so the UI keeps its gradient.
+
+    A long cache lifetime is safe: a poster file's contents never change for a
+    given key (a new lookup writes a fresh key), so the browser can hold it.
+    """
+    key = request.match_info["key"]
+    variant = request.query.get("variant", artwork.POSTER)
+    path = artwork.cached_path(key, variant)
+    if path is None:
+        raise web.HTTPNotFound()
+    return web.FileResponse(path, headers={"Cache-Control": "public, max-age=604800"})
+
+
+async def api_art_request(request: web.Request) -> web.Response:
+    """Report artwork status for a batch of items, scheduling missing fetches.
+
+    Body: ``{"want": [{"id", "key", "query", "kind", "year", "variant"}, ...]}``.
+    ``id`` is a caller-chosen token (it distinguishes the same key requested in
+    different variants); ``variant`` is ``"poster"`` (default) or ``"backdrop"``.
+    Returns ``{"art": {id: "ready"|"pending"|"none"}}``. "ready" items load from
+    ``GET /api/art/{key}?variant=...``; "pending" should be polled again shortly.
+    """
+    art: artwork.ArtworkService = request.app["art"]
+    data = await request.json()
+    tmdb_key = load_settings().tmdb_api_key
+    out: dict[str, str] = {}
+    for spec in data.get("want") or []:
+        key = (spec.get("key") or "").strip()
+        if not key:
+            continue
+        variant = spec.get("variant") or artwork.POSTER
+        rid = spec.get("id") or key
+        if rid in out:
+            continue
+        out[rid] = art.state(
+            key, spec.get("query") or "", spec.get("kind") or "movie",
+            str(spec.get("year") or ""), tmdb_key, variant,
+        )
+    return web.json_response({"art": out})
 
 
 async def api_fs(request: web.Request) -> web.Response:
@@ -265,6 +325,8 @@ def _settings_payload() -> dict:
         "preferred_sub_lang": s.preferred_sub_lang,
         "opensubtitles_api_key": s.opensubtitles_api_key,
         "has_api_key": bool(s.opensubtitles_api_key),
+        "tmdb_api_key": s.tmdb_api_key,
+        "has_tmdb_key": bool(s.tmdb_api_key),
         "system_language": system_language(),
     }
 
@@ -292,12 +354,18 @@ async def api_settings_post(request: web.Request) -> web.Response:
     data = await request.json()
     fields = {
         k: data[k]
-        for k in ("media_root", "preferred_sub_lang", "opensubtitles_api_key")
+        for k in ("media_root", "preferred_sub_lang", "opensubtitles_api_key",
+                  "tmdb_api_key")
         if k in data
     }
 
     def _save():
-        update_settings(**fields)
+        before = load_settings().tmdb_api_key
+        s = update_settings(**fields)
+        # A changed artwork-provider key can turn prior misses into hits, so
+        # drop the negative markers to let those titles be looked up again.
+        if s.tmdb_api_key != before:
+            artwork.clear_misses()
         return _settings_payload()
 
     return web.json_response(await _run(_save))
@@ -425,6 +493,8 @@ async def api_cast(request: web.Request) -> web.Response:
         state.seek_base = 0.0
         title = os.path.basename(source.rstrip("/")) or source
         state.title = title
+        # Derive a poster descriptor from the filename so the player shows real art.
+        state.art = _art_for_source(source)
         vtt = session.subtitle_plan.vtt_path
         state.orig_vtt = (
             Path(vtt).read_text(encoding="utf-8")
@@ -582,15 +652,19 @@ async def api_control(request: web.Request) -> web.Response:
 
 async def _on_cleanup(app: web.Application) -> None:
     await app["state"].teardown()
+    app["art"].close()
 
 
 def build_app() -> web.Application:
     app = web.Application()
     app["state"] = UIState()
+    app["art"] = artwork.ArtworkService()
     app.router.add_get("/", index)
     app.router.add_get("/api/devices", api_devices)
     app.router.add_post("/api/probe", api_probe)
     app.router.add_get("/api/library", api_library)
+    app.router.add_get("/api/art/{key}", api_art)
+    app.router.add_post("/api/art", api_art_request)
     app.router.add_get("/api/fs", api_fs)
     app.router.add_get("/api/settings", api_settings_get)
     app.router.add_post("/api/settings", api_settings_post)
