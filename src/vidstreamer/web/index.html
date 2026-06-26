@@ -144,6 +144,27 @@
   .az-rail .az.empty { opacity: .28; cursor: default; pointer-events: none; }
 
   .sb-list { flex: 1; overflow-y: auto; padding: 10px; }
+  /* App-wide settings live in the persistent sidebar chrome (not the playback
+     card) so it's unambiguous they apply to the whole app, not the cast.
+     Borderless nav-row (matches the library rows above): a dimmed accent gear
+     for brand identity without impersonating the multi-colour poster chips, a
+     muted label at the list-title weight, and a trailing chevron signalling
+     "opens a panel". Hover fills an inset rounded surface and brings it alive. */
+  .sb-foot { padding: 8px; border-top: 1px solid var(--line); background: rgba(255,255,255,.02); }
+  button.sb-settings { display: flex; align-items: center; gap: 12px; width: 100%; height: 44px;
+    justify-content: flex-start; background: transparent; border: 1px solid transparent;
+    box-shadow: none; padding: 0 14px 0 12px; border-radius: 10px; color: var(--muted);
+    font-size: 14px; font-weight: 500; letter-spacing: 0;
+    transition: background .12s ease, color .12s ease; }
+  button.sb-settings:hover { background: rgba(255,255,255,.05); color: #e8ecf4; }
+  button.sb-settings:active { background: rgba(255,255,255,.08); }
+  button.sb-settings .gear { width: 18px; height: 18px; flex: none; fill: var(--accent); opacity: .85;
+    transition: opacity .15s, transform .4s ease; }
+  button.sb-settings:hover .gear { opacity: 1; transform: rotate(40deg); }
+  button.sb-settings .lab { flex: 1; text-align: left; }
+  button.sb-settings .chev { width: 15px; height: 15px; flex: none; color: #6b7488;
+    transition: color .15s, transform .15s; }
+  button.sb-settings:hover .chev { color: var(--muted); transform: translateX(2px); }
   .sb-empty { padding: 30px 20px; color: var(--muted); font-size: 13px; text-align: center; line-height: 1.7; }
   .sb-group-head {
     display: flex; align-items: center; gap: 11px; padding: 9px 11px; cursor: pointer;
@@ -284,13 +305,14 @@
   }
   button.primary:hover { filter: brightness(1.08); transform: translateY(-1px); }
   button.primary:active { transform: translateY(0); }
-  /* Disabled Cast: subtle brand tint (not flat grey) so it still reads as THE
-     primary action, just not yet ready; distinguishable by more than colour. */
+  /* Disabled Cast: flat, de-saturated grey so it clearly reads as inert — the
+     action isn't available until a source AND a cast device are both chosen. */
   button.primary:disabled {
-    background: linear-gradient(135deg, rgba(125,151,255,.22), rgba(166,116,255,.22));
-    border: 1px solid rgba(125,151,255,.28); color: #cdd6ee;
-    box-shadow: var(--topline); filter: none; transform: none; opacity: 1;
+    background: var(--surface-2); border: 1px solid var(--line);
+    color: var(--faint); box-shadow: none; filter: none; transform: none;
+    opacity: 1; cursor: not-allowed;
   }
+  button.primary:disabled:hover { filter: none; transform: none; background: var(--surface-2); }
   button.icon { width: 46px; padding: 0; display: grid; place-items: center; }
   button.icon svg { width: 18px; height: 18px; fill: var(--text); }
 
@@ -475,8 +497,6 @@
   /* Settings modal body */
   .modal-body { padding: 18px 20px; overflow-y: auto; }
   .modal-body .field-block + .field-block { margin-top: 16px; }
-  .gear { margin-left: 4px; }
-  button.icon.gear svg { width: 19px; height: 19px; }
 
   /* Subtitle search area */
   .sub-search { margin-top: 12px; }
@@ -542,6 +562,9 @@
     <div class="sb-list" id="libList">
       <div class="sb-empty">Loading library…</div>
     </div>
+    <div class="sb-foot">
+      <button class="sb-settings" id="openSettings" title="App settings" aria-label="Open settings"><svg class="gear" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94a7.49 7.49 0 0 0 .05-1.88l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7 7 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.6.22L2.61 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.49 7.49 0 0 0 0 1.88L2.73 14.5a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96a7 7 0 0 0 1.62.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54a7 7 0 0 0 1.62-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg><span class="lab">Settings</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>
+    </div>
   </aside>
 
   <!-- MAIN -->
@@ -551,7 +574,6 @@
     <div class="logo"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
     <div class="brand"><h1>vidstreamer</h1><span class="tag">cast to the big screen</span></div>
     <div class="conn"><span class="dot" id="connDot"></span><span id="connText">idle</span></div>
-    <button class="icon gear" id="openSettings" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94a7.49 7.49 0 0 0 .05-1.88l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7 7 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.6.22L2.61 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.49 7.49 0 0 0 0 1.88L2.73 14.5a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96a7 7 0 0 0 1.62.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54a7 7 0 0 0 1.62-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg></button>
   </header>
 
   <!-- SETUP -->
@@ -729,6 +751,7 @@ const fmtClock = (s) => fmt(s, last.dur >= 3600);
 const setHint = (el, msg, cls) => { el.textContent = msg || ""; el.className = "hint" + (cls ? " " + cls : ""); };
 
 let media = null;            // last probe result
+let mediaReady = false;      // true once a source has probed successfully
 let poll = null;             // status poll timer
 let ticker = null;           // rAF interpolation
 let last = { t: 0, at: 0, state: null, dur: 0 };
@@ -744,7 +767,7 @@ async function loadMedia() {
   if (!src) return;
   setSetupHue(src);
   setHint($("srcHint"), "Probing…");
-  $("castBtn").disabled = true;
+  mediaReady = false; updateCastEnabled();
   const { ok, body } = await api("/api/probe", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ source: src }),
@@ -754,8 +777,21 @@ async function loadMedia() {
   renderMeta(body);
   renderTracks(body);
   setHint($("srcHint"), "Ready to cast", "ok");
-  $("castBtn").disabled = false;
+  mediaReady = true; updateCastEnabled();
   autoFindSubs(src);
+}
+
+// The Cast action needs BOTH a probed source and a chosen device (from the list
+// or the manual-IP field). Until both hold the button stays disabled/greyed,
+// with a hint pointing at whatever is still missing.
+function deviceChosen() {
+  return !!($("deviceManual").value.trim() || $("deviceSelect").value);
+}
+function updateCastEnabled() {
+  const ready = mediaReady && deviceChosen();
+  $("castBtn").disabled = !ready;
+  if (mediaReady && !deviceChosen()) setHint($("castHint"), "Select a cast device to start", "");
+  else if (ready && $("castHint").textContent === "Select a cast device to start") setHint($("castHint"), "");
 }
 
 /* ---------- Subtitle search ---------- */
@@ -981,6 +1017,7 @@ async function loadDevices() {
   } else {
     list.forEach((d) => sel.add(new Option(d.name + " · " + d.host, d.host)));
   }
+  updateCastEnabled();
 }
 
 /* ---------- Cast ---------- */
@@ -1248,6 +1285,8 @@ $("source").addEventListener("keydown", (e) => { if (e.key === "Enter") loadMedi
 $("browseSrc").onclick = () => openPicker("video", "source");
 $("browseSub").onclick = () => openPicker("sub", "subPath");
 $("refreshDev").onclick = loadDevices;
+$("deviceSelect").addEventListener("change", updateCastEnabled);
+$("deviceManual").addEventListener("input", updateCastEnabled);
 // Disclosure: reveal the manual-IP field on demand (kept in the DOM + readable
 // by the cast handler whether shown or not).
 $("deviceManualToggle").onclick = () => {
@@ -1257,6 +1296,7 @@ $("deviceManualToggle").onclick = () => {
   btn.setAttribute("aria-expanded", show ? "true" : "false");
   btn.textContent = show ? "Use the device list instead" : "Enter an IP address manually";
   if (show) inp.focus(); else inp.value = "";
+  updateCastEnabled();
 };
 $("castBtn").onclick = startCast;
 $("subPath").addEventListener("change", () => { if ($("subPath").value.trim()) $("subSelect").value = "sidecar"; });
