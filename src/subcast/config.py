@@ -8,18 +8,18 @@ import shutil
 
 from .errors import DependencyError
 
-ENV_PREFIX = "VIDSTREAMER_"
+ENV_PREFIX = "SUBCAST_"
 
 DEFAULT_DISCOVERY_TIMEOUT = 8.0  # seconds
 DEFAULT_PORT = 0  # 0 = ephemeral
 
 REQUIRED_BINARIES = ("ffmpeg", "ffprobe")
 
-log = logging.getLogger("vidstreamer")
+log = logging.getLogger("subcast")
 
 
 def env(name: str, default: str | None = None) -> str | None:
-    """Read an env override, e.g. env('DEVICE') -> VIDSTREAMER_DEVICE."""
+    """Read an env override, e.g. env('DEVICE') -> SUBCAST_DEVICE."""
     return os.environ.get(ENV_PREFIX + name, default)
 
 

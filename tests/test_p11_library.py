@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
-from vidstreamer import library, webapp
+from subcast import library, webapp
 
 
 # --------------------------------------------------------------------------- #

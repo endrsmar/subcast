@@ -7,8 +7,8 @@ import json
 
 import pytest
 
-from vidstreamer import subsearch
-from vidstreamer.errors import SubSearchError
+from subcast import subsearch
+from subcast.errors import SubSearchError
 
 
 # --------------------------------------------------------------------------- #
@@ -140,7 +140,7 @@ def test_search_online_parses_results(monkeypatch):
     assert r["file_id"] == 555
     assert r["download_count"] == 99
     assert captured["api_key"] == "KEY"
-    assert "vidstreamer" in captured["ua"]
+    assert "subcast" in captured["ua"]
     assert "query=Movie" in captured["url"]
 
 

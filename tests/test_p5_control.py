@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from vidstreamer.app import CastOptions, prepare_session
-from vidstreamer.caster import Caster
-from vidstreamer.discovery import select_device
-from vidstreamer.errors import DeviceError
-from vidstreamer.netutil import detect_lan_ip
+from subcast.app import CastOptions, prepare_session
+from subcast.caster import Caster
+from subcast.discovery import select_device
+from subcast.errors import DeviceError
+from subcast.netutil import detect_lan_ip
 
 from fakes import FakeChromecast, fake_device
 

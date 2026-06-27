@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from vidstreamer.compat import PlanOptions, plan_stream
-from vidstreamer.errors import UnsupportedMediaError
-from vidstreamer.probe import AudioStream, MediaInfo, VideoStream, build_media_info
-from vidstreamer.source import Source
+from subcast.compat import PlanOptions, plan_stream
+from subcast.errors import UnsupportedMediaError
+from subcast.probe import AudioStream, MediaInfo, VideoStream, build_media_info
+from subcast.source import Source
 
 
 def mi(container, vcodec="h264", vlevel=40, acodec="aac", **kw):

@@ -4,17 +4,17 @@ from __future__ import annotations
 
 import pytest
 
-from vidstreamer.compat import PlanOptions, plan_stream
-from vidstreamer.probe import build_media_info, probe_source
-from vidstreamer.source import Source
-from vidstreamer.subtitles import (
+from subcast.compat import PlanOptions, plan_stream
+from subcast.probe import build_media_info, probe_source
+from subcast.source import Source
+from subcast.subtitles import (
     convert_sidecar_to_vtt,
     plan_subtitles,
     prepare_subtitles,
     shift_vtt,
     srt_to_webvtt,
 )
-from vidstreamer.transcode import build_ffmpeg_command
+from subcast.transcode import build_ffmpeg_command
 
 
 def _is_valid_vtt(text: str) -> bool:
@@ -87,7 +87,7 @@ def test_v3_4_embedded_text_extract(media_dir):
     prepare_subtitles(plan, info, workdir, sidecar=None)
     text = open(plan.vtt_path, encoding="utf-8").read()
     assert text.startswith("WEBVTT")
-    assert "vidstreamer" in text
+    assert "subcast" in text
 
 
 def test_v3_5_image_track_warns_and_drops(image_probe_raw):

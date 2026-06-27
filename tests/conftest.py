@@ -21,7 +21,7 @@ requires_ffmpeg = pytest.mark.skipif(
 SRT_TEXT = (
     "1\n"
     "00:00:00,500 --> 00:00:01,500\n"
-    "Hello from vidstreamer\n"
+    "Hello from subcast\n"
     "\n"
     "2\n"
     "00:00:02,000 --> 00:00:02,800\n"

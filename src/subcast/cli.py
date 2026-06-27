@@ -1,4 +1,4 @@
-"""Command-line interface for vidstreamer."""
+"""Command-line interface for subcast."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import click
 
 from . import __version__
 from .config import check_dependencies, setup_logging
-from .errors import VidstreamerError
+from .errors import SubcastError
 
 
 def _parse_timecode(value: str) -> float:
@@ -40,7 +40,7 @@ def _start_callback(ctx: click.Context, param: click.Parameter, value: str | Non
 
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
-@click.version_option(__version__, "-V", "--version", prog_name="vidstreamer")
+@click.version_option(__version__, "-V", "--version", prog_name="subcast")
 @click.option("-v", "--verbose", count=True, help="Increase verbosity (-v, -vv).")
 @click.pass_context
 def cli(ctx: click.Context, verbose: int) -> None:
@@ -152,7 +152,7 @@ def stop(device: str | None, timeout: float) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Console entry point. Maps VidstreamerError to its exit code."""
+    """Console entry point. Maps SubcastError to its exit code."""
     try:
         cli.main(args=argv, standalone_mode=False)
         return 0
@@ -162,7 +162,7 @@ def main(argv: list[str] | None = None) -> int:
     except click.exceptions.Abort:
         click.echo("Aborted.", err=True)
         return 1
-    except VidstreamerError as exc:
+    except SubcastError as exc:
         click.echo(f"error: {exc}", err=True)
         return exc.exit_code
     except KeyboardInterrupt:

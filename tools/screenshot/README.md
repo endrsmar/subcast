@@ -1,6 +1,6 @@
 # Web UI screenshot harness
 
-Renders the real `src/vidstreamer/web/index.html` in headless Chrome and
+Renders the real `src/subcast/web/index.html` in headless Chrome and
 captures a chosen **scene** — a known UI state populated with representative
 sample data — so you can screenshot any part of the player without a running
 backend or an active casting session.

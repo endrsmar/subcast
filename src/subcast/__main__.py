@@ -1,4 +1,4 @@
-"""Enable `python -m vidstreamer`."""
+"""Enable `python -m subcast`."""
 
 import sys
 

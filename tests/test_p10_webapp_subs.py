@@ -7,7 +7,7 @@ import json
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
-from vidstreamer import subsearch, webapp
+from subcast import subsearch, webapp
 
 
 @pytest.fixture

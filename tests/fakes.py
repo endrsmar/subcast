@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from vidstreamer.discovery import Device
+from subcast.discovery import Device
 
 
 @dataclass

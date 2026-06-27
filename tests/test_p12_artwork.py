@@ -8,12 +8,12 @@ import time
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
-from vidstreamer import artwork, webapp
+from subcast import artwork, webapp
 
 
 @pytest.fixture(autouse=True)
 def art_home(tmp_path, monkeypatch):
-    """Point the poster store at a tmp dir so tests never touch ~/.vidstreamer."""
+    """Point the poster store at a tmp dir so tests never touch ~/.subcast."""
     d = tmp_path / "art"
     monkeypatch.setenv(artwork.ART_DIR_ENV, str(d))
     return d

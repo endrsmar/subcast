@@ -1,4 +1,4 @@
-# vidstreamer — Specification
+# subcast — Specification
 
 A CLI tool for Ubuntu that casts video to a **Chromecast Ultra**, with subtitle support
 (separate `.srt`/text files *or* subtitles embedded in a container such as `.mkv`), where the
@@ -47,7 +47,7 @@ that an implementation loop must satisfy, phase by phase.
     for direct play and (b) stream an ffmpeg pipe for on-the-fly remux/transcode; an async server
     handles many concurrent Range/segment requests from the device cleanly.
   - `click` (CLI parsing) — or `argparse` if a zero-dependency CLI is preferred. Either is acceptable.
-- **Packaging:** installable via `pip install .` exposing a console entry point `vidstreamer`.
+- **Packaging:** installable via `pip install .` exposing a console entry point `subcast`.
 
 The implementation MUST NOT assume an internet egress for the casting path itself except when the
 source is a web resource.
@@ -98,7 +98,7 @@ for non-seekable pipes (see §6.4).
 UI-agnostic core with a thin CLI on top. Suggested package layout:
 
 ```
-vidstreamer/
+subcast/
   __init__.py
   cli.py            # arg parsing, command dispatch, interactive controls
   discovery.py      # find/select Chromecast devices (pychromecast wrapper)
@@ -111,7 +111,7 @@ vidstreamer/
   server.py         # aiohttp server: Range serving, ffmpeg-pipe streaming, /video /sub /healthz
   config.py         # defaults, env/flag config, logging setup
   errors.py         # typed exceptions
-  __main__.py       # python -m vidstreamer
+  __main__.py       # python -m subcast
 tests/
   ...
 SPEC.md
@@ -258,7 +258,7 @@ Processing rules:
 
 Primary command:
 ```
-vidstreamer cast <SOURCE> [options]
+subcast cast <SOURCE> [options]
 ```
 `<SOURCE>` = local path or http(s) URL.
 
@@ -279,11 +279,11 @@ Options (minimum set):
 - `-v/-vv`                   Verbosity; `--json-status` for machine-readable status output.
 
 Auxiliary commands:
-- `vidstreamer devices`      Discover and list Chromecasts (name, model, IP). Exit 0 even if none,
+- `subcast devices`      Discover and list Chromecasts (name, model, IP). Exit 0 even if none,
   printing a clear "no devices found" message.
-- `vidstreamer probe <SOURCE>`  Print the `MediaInfo` + the computed `StreamPlan` (no casting).
+- `subcast probe <SOURCE>`  Print the `MediaInfo` + the computed `StreamPlan` (no casting).
   This is the key **introspection command for automated validation** (machine-readable with `--json`).
-- `vidstreamer stop [-d device]`  Stop playback / quit the receiver app on a device.
+- `subcast stop [-d device]`  Stop playback / quit the receiver app on a device.
 
 Interactive controls (when attached, not `--non-interactive`): `space`=play/pause, `←/→`=seek ±10s,
 `↑/↓`=volume, `s`=cycle subtitle track, `q`=quit. A simple line-based command mode is acceptable if
@@ -306,9 +306,9 @@ unreachable; `5` ffmpeg/dependency missing; `6` unsupported media with `--no-tra
 ---
 
 ## 10. Configuration
-- Flags override env vars override defaults. Env prefix `VIDSTREAMER_` (e.g. `VIDSTREAMER_DEVICE`,
-  `VIDSTREAMER_BIND_IP`, `VIDSTREAMER_PORT`).
-- No config file required in v1 (optional `~/.config/vidstreamer/config.toml` is a nice-to-have).
+- Flags override env vars override defaults. Env prefix `SUBCAST_` (e.g. `SUBCAST_DEVICE`,
+  `SUBCAST_BIND_IP`, `SUBCAST_PORT`).
+- No config file required in v1 (optional `~/.config/subcast/config.toml` is a nice-to-have).
 
 ---
 
@@ -318,8 +318,8 @@ Each phase is independently testable. The loop should implement and validate the
 phases must not regress earlier validation. See `VALIDATION.md` for the concrete criteria/IDs.
 
 - **P0 — Scaffolding & deps.** Package skeleton, `pyproject.toml`, entry point, dependency check,
-  `vidstreamer --version/--help`, logging/config. *(Validation group V0)*
-- **P1 — Media probing.** `probe.py` + `vidstreamer probe` producing accurate `MediaInfo` JSON for
+  `subcast --version/--help`, logging/config. *(Validation group V0)*
+- **P1 — Media probing.** `probe.py` + `subcast probe` producing accurate `MediaInfo` JSON for
   local files (mp4/mkv/webm) and a remote URL. *(V1)*
 - **P2 — Compatibility engine.** `compat.py` `StreamPlan` decisions; surfaced via `probe --json`.
   Pure logic, unit-testable with synthetic `MediaInfo`. *(V2)*
@@ -327,7 +327,7 @@ phases must not regress earlier validation. See `VALIDATION.md` for the concrete
   burn-in plan. Pure/ffmpeg, file-level tests, no device. *(V3)*
 - **P4 — Local HTTP server.** Range serving, CORS, WebVTT route, ffmpeg-pipe streaming, LAN IP
   detection, `/healthz`. Tested with a local HTTP client (no device). *(V4)*
-- **P5 — Discovery & control.** `discovery.py`/`caster.py`; `vidstreamer devices`. Mockable;
+- **P5 — Discovery & control.** `discovery.py`/`caster.py`; `subcast devices`. Mockable;
   hardware test casts a known-good MP4. *(V5)*
 - **P6 — End-to-end casting.** Wire it all: direct play, remux MKV, transcode, sidecar subs,
   embedded subs, remote source, seeking. *(V6 — includes hardware acceptance tests)*
@@ -339,7 +339,7 @@ phases must not regress earlier validation. See `VALIDATION.md` for the concrete
 - **4K HEVC** field failures → keep a configurable transcode-fallback.
 - **HDR** passthrough without tone-mapping may look washed out on SDR TVs; document, don't fix in v1.
 - **Hardware-dependent validation:** several criteria need a real Chromecast Ultra + TV; these are
-  marked `[HW]` in `VALIDATION.md` and gated behind a `VIDSTREAMER_TEST_DEVICE` env var so the loop
+  marked `[HW]` in `VALIDATION.md` and gated behind a `SUBCAST_TEST_DEVICE` env var so the loop
   can run the non-HW suite unattended and defer HW checks to a human-in-the-loop run.
 
 ---

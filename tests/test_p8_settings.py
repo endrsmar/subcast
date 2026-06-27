@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from vidstreamer import settings as st
+from subcast import settings as st
 
 
 @pytest.fixture
@@ -33,7 +33,7 @@ def test_save_creates_dir_and_roundtrips(cfg_home):
     st.save_settings(s)
     path = st.settings_path()
     assert path.exists()
-    assert path.parent.name == "vidstreamer"
+    assert path.parent.name == "subcast"
     loaded = st.load_settings()
     assert loaded.media_root == "/movies"
     assert loaded.preferred_sub_lang == "cs"

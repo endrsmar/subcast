@@ -3,13 +3,13 @@ requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "vidstreamer"
+name = "subcast"
 version = "0.1.0"
 description = "Cast local or web video to a Chromecast Ultra with subtitle support"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "vidstreamer" }]
+authors = [{ name = "subcast" }]
 dependencies = [
     # Ubuntu 22.04 ships Python 3.10; PyChromecast 14 needs 3.11+, so 13.x is the
     # floor that supports our own platform target. The subtitle/load API we use
@@ -23,13 +23,13 @@ dependencies = [
 test = ["pytest>=8", "pytest-asyncio>=0.23"]
 
 [project.scripts]
-vidstreamer = "vidstreamer.cli:main"
+subcast = "subcast.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-vidstreamer = ["web/*.html"]
+subcast = ["web/*.html"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -1,9 +1,9 @@
 {
-  "name": "vidstreamer-screenshot",
+  "name": "subcast-screenshot",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Headless-Chrome screenshot harness for the vidstreamer web UI",
+  "description": "Headless-Chrome screenshot harness for the subcast web UI",
   "bin": { "vidshot": "shoot.mjs" },
   "scripts": {
     "shoot": "node shoot.mjs"

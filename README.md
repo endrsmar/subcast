@@ -1,4 +1,4 @@
-# vidstreamer
+# subcast
 
 Cast local or web video to a **Chromecast Ultra** from Ubuntu, with subtitles —
 either a sidecar `.srt` or subtitles embedded in the container (e.g. `.mkv`).
@@ -28,29 +28,29 @@ pytest
 
 ```bash
 # Discover devices
-vidstreamer devices
+subcast devices
 
 # Inspect what would happen (no casting) — media info + the stream plan
-vidstreamer probe movie.mkv
-vidstreamer probe movie.mkv --json
+subcast probe movie.mkv
+subcast probe movie.mkv --json
 
 # Cast a local file
-vidstreamer cast movie.mkv
+subcast cast movie.mkv
 
 # Cast with a sidecar subtitle file
-vidstreamer cast movie.mp4 --subtitles movie.en.srt --sub-lang eng
+subcast cast movie.mp4 --subtitles movie.en.srt --sub-lang eng
 
 # Pick an embedded subtitle track (by index or language) and a device
-vidstreamer cast movie.mkv --sub-track eng -d "Living Room"
+subcast cast movie.mkv --sub-track eng -d "Living Room"
 
 # Burn in image-based subtitles (PGS/VOBSUB) — forces a re-encode
-vidstreamer cast movie.mkv --sub-track 0 --burn-subs
+subcast cast movie.mkv --sub-track 0 --burn-subs
 
 # Cast a direct web URL (streamed through this machine while casting)
-vidstreamer cast https://example.com/clip.mp4
+subcast cast https://example.com/clip.mp4
 
 # Stop playback
-vidstreamer stop -d "Living Room"
+subcast stop -d "Living Room"
 ```
 
 Interactive controls while attached: `p` pause, `r` resume, `s <sec>` seek,

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from vidstreamer.errors import SourceError
-from vidstreamer.probe import build_media_info, probe_source
-from vidstreamer.source import Source
+from subcast.errors import SourceError
+from subcast.probe import build_media_info, probe_source
+from subcast.source import Source
 
 pytestmark = pytest.mark.usefixtures("media_dir")
 

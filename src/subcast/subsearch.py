@@ -29,7 +29,7 @@ from .errors import SubSearchError
 SUB_EXTS = (".srt", ".vtt", ".ass", ".ssa", ".sub")
 _EXT_RANK = {ext: i for i, ext in enumerate(SUB_EXTS)}
 
-USER_AGENT = f"vidstreamer v{__version__}"
+USER_AGENT = f"subcast v{__version__}"
 _OS_BASE = "https://api.opensubtitles.com/api/v1"
 _HTTP_TIMEOUT = 15.0
 

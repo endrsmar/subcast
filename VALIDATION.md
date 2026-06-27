@@ -1,4 +1,4 @@
-# vidstreamer — Validation Criteria
+# subcast — Validation Criteria
 
 Acceptance criteria the implementation loop must satisfy. Each criterion has an **ID**, a
 **method** (how to check it), and a **pass condition**. Criteria are grouped by the phases in
@@ -8,7 +8,7 @@ still pass (no regressions).
 **Legend**
 - `[AUTO]` — fully automated; runs in CI / unattended loop. No Chromecast required.
 - `[HW]` — requires a real Chromecast Ultra + TV on the LAN. Gated behind env var
-  `VIDSTREAMER_TEST_DEVICE=<name|ip>`. Skipped (not failed) when the var is unset.
+  `SUBCAST_TEST_DEVICE=<name|ip>`. Skipped (not failed) when the var is unset.
 - `[MANUAL]` — needs a human to eyeball the TV (subtitle rendering, A/V sync). Logged as a checklist
   item; the loop records "pending manual confirmation", does not block automated progress on it.
 
@@ -18,7 +18,7 @@ still pass (no regressions).
   commit large binaries.
 - The Chromecast control plane is mocked for `[AUTO]` device tests (a `FakeChromecast` exposing the
   `media_controller` surface used by `caster.py`), so casting orchestration is testable without HW.
-- A machine-readable surface is mandatory: `vidstreamer probe --json` and `--json-status` emit JSON
+- A machine-readable surface is mandatory: `subcast probe --json` and `--json-status` emit JSON
   the tests assert against. This is the primary automated oracle.
 
 ---
@@ -37,16 +37,16 @@ Generated via ffmpeg `lavfi`/`testsrc` so they are tiny and license-free:
 ---
 
 ## V0 — Scaffolding & dependencies (Phase P0)
-- **V0.1 [AUTO]** `vidstreamer --version` prints a semver and exits 0.
-- **V0.2 [AUTO]** `vidstreamer --help` lists `cast`, `devices`, `probe`, `stop` and exits 0.
+- **V0.1 [AUTO]** `subcast --version` prints a semver and exits 0.
+- **V0.2 [AUTO]** `subcast --help` lists `cast`, `devices`, `probe`, `stop` and exits 0.
 - **V0.3 [AUTO]** With `ffmpeg`/`ffprobe` present, dependency check passes silently. When `PATH` is
   stubbed to hide them, the tool exits **5** with a message naming the missing binary and the
   `apt install ffmpeg` hint.
-- **V0.4 [AUTO]** `python -m vidstreamer` is equivalent to the `vidstreamer` entry point.
+- **V0.4 [AUTO]** `python -m subcast` is equivalent to the `subcast` entry point.
 - **V0.5 [AUTO]** `pip install .` succeeds in a clean venv and installs the console script.
 
 ## V1 — Media probing (Phase P1)
-- **V1.1 [AUTO]** `vidstreamer probe compat.mp4 --json` reports container `mp4`/`mov`, video
+- **V1.1 [AUTO]** `subcast probe compat.mp4 --json` reports container `mp4`/`mov`, video
   `h264`, audio `aac`, correct width/height, and `subtitle_tracks: []`.
 - **V1.2 [AUTO]** `probe remux.mkv --json` reports container `matroska`, video `h264`, audio `aac`.
 - **V1.3 [AUTO]** `probe embedded_text.mkv --json` lists ≥1 subtitle track with `language: eng` and
@@ -118,12 +118,12 @@ Tested with an in-process HTTP client (`aiohttp`/`httpx`) against the running se
   `.vtt` with `subtitles_mime=text/vtt`, and `enable_subtitle` is called for the active track.
 - **V5.3 [AUTO]** Pipe/transcode mode sets `stream_type` appropriately (BUFFERED with restart-on-seek
   per SPEC §6.4) and the seek control triggers an ffmpeg restart + reload at the new offset.
-- **V5.4 [AUTO]** `vidstreamer devices` with a mocked discovery returns the fake device's
+- **V5.4 [AUTO]** `subcast devices` with a mocked discovery returns the fake device's
   name/model/IP; with no devices it prints "no devices found" and exits 0.
 - **V5.5 [AUTO]** `--device <name>` selects the matching fake device; an unknown name exits **4**.
 - **V5.6 [AUTO]** Playback controls map to the right controller calls (pause→`pause()`,
   resume→`play()`, stop→`stop()`, volume→`set_volume()`, seek→`seek()`/reload).
-- **V5.7 [HW]** `vidstreamer devices` lists the real Chromecast Ultra (name + IP) within the
+- **V5.7 [HW]** `subcast devices` lists the real Chromecast Ultra (name + IP) within the
   discovery timeout.
 
 ## V6 — End-to-end (Phase P6)

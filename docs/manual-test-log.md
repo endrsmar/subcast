@@ -4,7 +4,7 @@ Hardware acceptance criteria (`VALIDATION.md` V5.7, V6.8–V6.12) require a real
 Chromecast Ultra + TV on the LAN. Run them with:
 
 ```bash
-export VIDSTREAMER_TEST_DEVICE="Living Room"   # device name or IP
+export SUBCAST_TEST_DEVICE="Living Room"   # device name or IP
 pytest tests/test_p6_e2e.py -k real -v          # un-skips the gated tests
 ```
 

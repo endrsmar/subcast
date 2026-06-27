@@ -9,14 +9,14 @@ import subprocess
 import aiohttp
 import pytest
 
-from vidstreamer.app import CastOptions, prepare_session
+from subcast.app import CastOptions, prepare_session
 
 from fakes import FakeChromecast, fake_device
 
 pytestmark = pytest.mark.usefixtures("media_dir")
 
-HW = os.environ.get("VIDSTREAMER_TEST_DEVICE")
-requires_hw = pytest.mark.skipif(not HW, reason="set VIDSTREAMER_TEST_DEVICE to run")
+HW = os.environ.get("SUBCAST_TEST_DEVICE")
+requires_hw = pytest.mark.skipif(not HW, reason="set SUBCAST_TEST_DEVICE to run")
 
 
 def _discoverer(dev):
@@ -118,7 +118,7 @@ async def test_v6_5_embedded_text_subtitle_e2e(media_dir, tmp_path):
         await _fetch(sub_url, out)
         text = out.read_text(encoding="utf-8")
         assert text.startswith("WEBVTT")
-        assert "vidstreamer" in text
+        assert "subcast" in text
     finally:
         await session.close()
 

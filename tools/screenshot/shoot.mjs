@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Screenshot harness for the vidstreamer web UI.
+// Screenshot harness for the subcast web UI.
 //
-// Renders the REAL src/vidstreamer/web/index.html in headless Chrome and
+// Renders the REAL src/subcast/web/index.html in headless Chrome and
 // captures a chosen "scene" — a known UI state populated with representative
 // data, so no backend/casting session is needed. Uses the system Chrome by
 // default (no `playwright install` required).
@@ -34,7 +34,7 @@ import { dirname, resolve, join } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..', '..');
-const DEFAULT_INDEX = join(REPO_ROOT, 'src', 'vidstreamer', 'web', 'index.html');
+const DEFAULT_INDEX = join(REPO_ROOT, 'src', 'subcast', 'web', 'index.html');
 
 // ---- tiny arg parser ----
 function parseArgs(argv) {
@@ -88,6 +88,32 @@ function applyPlayer() {
   subOffset = 0.5; renderSubOff();
 }
 
+function applySubResults() {
+  // Setup view with online subtitle results listed and the 2nd result chosen —
+  // exercises the collapse-on-select + green "done" button states.
+  const $ = (id) => document.getElementById(id);
+  document.body.classList.add('has-art');
+  $('source').value = 'https://host/House.of.the.Dragon.S02E08.1080p.WEB-DL.mkv';
+  $('trackBlock').style.display = 'block';
+  // eslint-disable-next-line no-undef
+  onlineAvailable = true;
+  const box = $('subResults');
+  box.innerHTML = "<div class='head'>Online (OpenSubtitles)</div>";
+  const results = [
+    { name: 'House.of.the.Dragon.S02E08.1080p.WEB-DL.SuccessfulCrab', lang: 'English', download_count: 4210, file_id: 1 },
+    { name: 'House of the Dragon - 2x08 - The Queen Who Ever Was', lang: 'English', download_count: 980, file_id: 2 },
+    { name: 'HotD.S02E08.WEBRip.x264-MeGusta', lang: 'English', download_count: 152, file_id: 3 },
+  ];
+  // eslint-disable-next-line no-undef
+  results.forEach((r) => box.appendChild(onlineRow(r)));
+  box.style.display = 'block';
+  const rows = box.querySelectorAll('.res');
+  // eslint-disable-next-line no-undef
+  selectSidecar('/media/subs/hotd.s02e08.en.srt', 'hotd.s02e08.en.srt');
+  // eslint-disable-next-line no-undef
+  chooseResult(rows[1], rows[1].querySelector('button'));
+}
+
 function applySettings() {
   const $ = (id) => document.getElementById(id);
   fillLangSelect($('setLang'), 'en', 'en');
@@ -139,7 +165,8 @@ function applyDrawer(items) {
 
 const SCENES = {
   setup:    { width: 620,  selector: '.app',          apply: null },
-  player:   { width: 620,  selector: '#player',       apply: applyPlayer },
+  player:   { width: 980,  selector: '#player',       apply: applyPlayer },
+  subs:     { width: 620,  selector: '#trackBlock',   apply: applySubResults },
   settings: { width: 620,  selector: '#settingsBack .modal', apply: applySettings },
   library:  { width: 900,  selector: '#sidebar',      apply: applyLibrary, arg: SAMPLE_LIBRARY },
   full:     { width: 1200, selector: null, fullPage: true, apply: applyFull, arg: SAMPLE_LIBRARY },

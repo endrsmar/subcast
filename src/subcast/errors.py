@@ -3,41 +3,41 @@
 from __future__ import annotations
 
 
-class VidstreamerError(Exception):
+class SubcastError(Exception):
     """Base error. ``exit_code`` maps to the process exit status."""
 
     exit_code: int = 1
 
 
-class UsageError(VidstreamerError):
+class UsageError(SubcastError):
     exit_code = 2
 
 
-class SourceError(VidstreamerError):
+class SourceError(SubcastError):
     """Source file/URL not found or unreachable."""
 
     exit_code = 3
 
 
-class DeviceError(VidstreamerError):
+class DeviceError(SubcastError):
     """No Chromecast found, or the requested device is unreachable."""
 
     exit_code = 4
 
 
-class DependencyError(VidstreamerError):
+class DependencyError(SubcastError):
     """A required system binary (ffmpeg/ffprobe) is missing."""
 
     exit_code = 5
 
 
-class UnsupportedMediaError(VidstreamerError):
+class UnsupportedMediaError(SubcastError):
     """Media cannot be played and transcoding was refused (--no-transcode)."""
 
     exit_code = 6
 
 
-class SubSearchError(VidstreamerError):
+class SubSearchError(SubcastError):
     """Subtitle search or download failed (network, config, or remote API)."""
 
     exit_code = 7

@@ -12,7 +12,7 @@ poster. Artwork is looked up through a small provider chain, best first:
    this is the keyless fallback that gets posters out of the box for series.
 
 The found image is downloaded once and stored permanently under
-``~/.vidstreamer/art_library`` (override with ``$VIDSTREAMER_ART_DIR``). All
+``~/.subcast/art_library`` (override with ``$SUBCAST_ART_DIR``). All
 network work happens on a small background thread pool so the web UI never
 blocks; until a poster arrives — or if none is found — the UI keeps its
 generated gradient tile.
@@ -35,7 +35,7 @@ from pathlib import Path
 from . import __version__
 from .config import log
 
-USER_AGENT = f"vidstreamer v{__version__}"
+USER_AGENT = f"subcast v{__version__}"
 _HTTP_TIMEOUT = 15.0
 
 _ITUNES_BASE = "https://itunes.apple.com/search"
@@ -61,7 +61,7 @@ _NET_ERRORS = (urllib.error.URLError, TimeoutError, OSError, ValueError)
 # Cap a single poster download so a bad/huge URL can't fill the disk.
 _MAX_IMAGE_BYTES = 8 * 1024 * 1024
 
-ART_DIR_ENV = "VIDSTREAMER_ART_DIR"
+ART_DIR_ENV = "SUBCAST_ART_DIR"
 
 # A trailing release year, used both to disambiguate movies and to keep it out
 # of the search term (iTunes matches titles better without it).
@@ -73,9 +73,9 @@ _YEAR_RE = re.compile(r"\b(19|20)\d{2}\b")
 # --------------------------------------------------------------------------- #
 
 def art_library_dir() -> Path:
-    """Permanent on-disk poster store (honors ``$VIDSTREAMER_ART_DIR``)."""
+    """Permanent on-disk poster store (honors ``$SUBCAST_ART_DIR``)."""
     override = os.environ.get(ART_DIR_ENV)
-    base = Path(override) if override else Path.home() / ".vidstreamer" / "art_library"
+    base = Path(override) if override else Path.home() / ".subcast" / "art_library"
     return base
 
 

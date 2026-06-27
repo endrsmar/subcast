@@ -24,7 +24,7 @@ from . import artwork, discovery, subsearch
 from .app import CastOptions, Session, prepare_session
 from .caster import STREAM_BUFFERED
 from .config import log
-from .errors import SubSearchError, VidstreamerError
+from .errors import SubSearchError, SubcastError
 from .probe import MediaInfo, probe_source
 from .settings import load_settings, system_language, update_settings
 from .source import resolve_source
@@ -48,7 +48,7 @@ class UIState:
 
     def __init__(self) -> None:
         self.session: Session | None = None
-        self.title: str = "vidstreamer"
+        self.title: str = "subcast"
         # Poster descriptor ({key, query, kind} or None) for the casting title,
         # so the player screen can show real artwork — not just a gradient.
         self.art: dict | None = None
@@ -199,7 +199,7 @@ async def api_probe(request: web.Request) -> web.Response:
         return web.json_response({"error": "no source given"}, status=400)
     try:
         info = await _run(probe_source, source)
-    except VidstreamerError as exc:
+    except SubcastError as exc:
         return web.json_response({"error": str(exc)}, status=400)
     except Exception as exc:
         log.exception("probe failed")
@@ -335,13 +335,13 @@ def _local_path(source: str) -> str | None:
     """Return the absolute local path for ``source``, or None for remote/invalid."""
     try:
         src = resolve_source(source)
-    except VidstreamerError:
+    except SubcastError:
         return None
     return None if src.is_remote else src.ffmpeg_input
 
 
 def _subcache_dir() -> str:
-    d = os.path.join(tempfile.gettempdir(), "vidstreamer-subs")
+    d = os.path.join(tempfile.gettempdir(), "subcast-subs")
     os.makedirs(d, exist_ok=True)
     return d
 
@@ -483,7 +483,7 @@ async def api_cast(request: web.Request) -> web.Response:
         await state.teardown()
         try:
             session = await prepare_session(source, opts)
-        except VidstreamerError as exc:
+        except SubcastError as exc:
             return web.json_response({"ok": False, "error": str(exc)}, status=400)
         except Exception as exc:
             log.exception("cast failed")
@@ -681,7 +681,7 @@ def build_app() -> web.Application:
 def run_ui(host: str = "127.0.0.1", port: int = 8420, *, open_browser: bool = True) -> None:
     app = build_app()
     url = f"http://{host}:{port}"
-    click.echo(f"vidstreamer UI running at {url}")
+    click.echo(f"subcast UI running at {url}")
     click.echo("Press Ctrl-C to stop.")
     if open_browser:
         try:

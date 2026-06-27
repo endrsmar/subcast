@@ -5,13 +5,13 @@ from __future__ import annotations
 import subprocess
 import sys
 
-from vidstreamer import __version__
-from vidstreamer.cli import main
+from subcast import __version__
+from subcast.cli import main
 
 
 def run_cli(args, env=None):
     return subprocess.run(
-        [sys.executable, "-m", "vidstreamer", *args],
+        [sys.executable, "-m", "subcast", *args],
         capture_output=True, text=True, env=env,
     )
 
@@ -34,7 +34,7 @@ def test_v0_2_help_lists_commands(capsys):
 
 def test_v0_3_missing_ffmpeg_exits_5(monkeypatch):
     # Hide ffmpeg/ffprobe from PATH; a real command must exit 5 with a hint.
-    import vidstreamer.config as config
+    import subcast.config as config
 
     monkeypatch.setattr(config.shutil, "which", lambda name: None)
     code = main(["probe", "/nonexistent"])

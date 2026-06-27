@@ -15,7 +15,7 @@ from . import discovery
 from .caster import STREAM_BUFFERED, Caster
 from .compat import PlanOptions, StreamPlan, plan_stream
 from .config import check_dependencies, log
-from .errors import VidstreamerError
+from .errors import SubcastError
 from .probe import MediaInfo, probe_source
 from .server import MediaServer
 from .source import resolve_source
@@ -120,7 +120,7 @@ async def prepare_session(
     )
     plan = plan_stream(info, plan_opts)
 
-    workdir = tempfile.mkdtemp(prefix="vidstreamer-")
+    workdir = tempfile.mkdtemp(prefix="subcast-")
     if sub_plan.mode == "embedded_text" and info.is_remote:
         click.echo(
             "Extracting embedded subtitles from a remote source — this downloads "
@@ -191,7 +191,7 @@ async def prepare_session(
     caster.play(
         video_url,
         plan.content_type,
-        title=title or "vidstreamer",
+        title=title or "subcast",
         subtitles=handles.subtitle_url,
         subtitles_lang=sub_plan.language,
         stream_type=STREAM_BUFFERED,
@@ -236,7 +236,7 @@ def run_cast(source: str, opts_dict: dict) -> None:
         asyncio.run(_go())
     except KeyboardInterrupt:
         click.echo("\nStopped.")
-    except VidstreamerError:
+    except SubcastError:
         raise
 
 

@@ -15,7 +15,7 @@ SUBTITLE_TRACK_ID = 1
 class Caster:
     """Orchestrates playback on a single device.
 
-    Accepts either a :class:`~vidstreamer.discovery.Device` or a raw cast object
+    Accepts either a :class:`~subcast.discovery.Device` or a raw cast object
     (anything exposing ``media_controller``, ``set_volume``, ``wait``,
     ``disconnect``), which keeps it unit-testable with a FakeChromecast.
     """
@@ -37,7 +37,7 @@ class Caster:
         url: str,
         content_type: str,
         *,
-        title: str = "vidstreamer",
+        title: str = "subcast",
         subtitles: str | None = None,
         subtitles_lang: str = "und",
         stream_type: str = STREAM_BUFFERED,

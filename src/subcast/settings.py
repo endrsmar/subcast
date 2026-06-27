@@ -1,6 +1,6 @@
 """Persisted user settings (media root, subtitle language, OpenSubtitles key).
 
-Settings live as JSON at ``$XDG_CONFIG_HOME/vidstreamer/settings.json`` (falling
+Settings live as JSON at ``$XDG_CONFIG_HOME/subcast/settings.json`` (falling
 back to ``~/.config``). Loading is defensive: a missing or corrupt file yields
 defaults rather than raising, so the UI/CLI never crash on a bad config.
 
@@ -18,7 +18,7 @@ from pathlib import Path
 from .config import log
 
 SETTINGS_FILENAME = "settings.json"
-_APP_DIR = "vidstreamer"
+_APP_DIR = "subcast"
 
 
 def config_dir() -> Path:

@@ -7,9 +7,9 @@ import os
 import aiohttp
 import pytest
 
-from vidstreamer.app import CastOptions, prepare_session
-from vidstreamer.subtitles import shift_vtt
-from vidstreamer.webapp import UIState, _apply_sub_offset
+from subcast.app import CastOptions, prepare_session
+from subcast.subtitles import shift_vtt
+from subcast.webapp import UIState, _apply_sub_offset
 
 from fakes import FakeChromecast, fake_device
 

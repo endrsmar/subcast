@@ -9,11 +9,11 @@ import subprocess
 import aiohttp
 import pytest
 
-from vidstreamer.compat import plan_stream
-from vidstreamer.netutil import detect_lan_ip
-from vidstreamer.probe import probe_source
-from vidstreamer.server import MediaServer
-from vidstreamer.subtitles import convert_sidecar_to_vtt
+from subcast.compat import plan_stream
+from subcast.netutil import detect_lan_ip
+from subcast.probe import probe_source
+from subcast.server import MediaServer
+from subcast.subtitles import convert_sidecar_to_vtt
 
 pytestmark = pytest.mark.usefixtures("media_dir")
 
